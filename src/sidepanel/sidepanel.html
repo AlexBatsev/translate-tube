@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Translate Tube</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="top">
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="transcript" aria-selected="true">Transcript</button>
+      <button role="tab" data-tab="prepare">Prepare</button>
+      <button role="tab" data-tab="cards">Cards <span id="queue-count" class="pill" hidden></span></button>
+    </nav>
+    <button id="open-settings" class="icon" title="Settings" aria-label="Settings">⚙</button>
+  </header>
+  <div id="video-title" class="video-title"></div>
+
+  <main>
+    <section id="tab-transcript" class="tab-body">
+      <div id="transcript-status" class="status"></div>
+      <div id="transcript" class="transcript" tabindex="0"></div>
+      <button id="follow-now" class="follow" hidden>↓ Back to now</button>
+    </section>
+
+    <section id="tab-prepare" class="tab-body" hidden>
+      <div id="prep-start" class="prep-start">
+        <p>Go through the hard sentences <b>before</b> you watch. The words you add go to Anki, and the ones you skip teach Translate Tube what you already know.</p>
+        <label class="check"><input type="checkbox" id="prep-only-hard" checked> Only show sentences with hard words</label>
+        <button id="prep-begin" class="primary">Start</button>
+        <div class="keys">
+          <div><kbd>Space</kbd> show translation</div>
+          <div><kbd>Tab</kbd> next highlighted word</div>
+          <div><kbd>A</kbd> add word to Anki</div>
+          <div><kbd>S</kbd> skip, I know it</div>
+          <div><kbd>Enter</kbd> next sentence</div>
+          <div><kbd>Backspace</kbd> previous sentence</div>
+          <div><kbd>P</kbd> play this sentence</div>
+          <div>Click any other word to look it up</div>
+        </div>
+      </div>
+      <div id="prep-card" class="prep-card" hidden tabindex="0">
+        <div class="prep-progress"><span id="prep-pos"></span><button id="prep-play" class="link">▶ play</button></div>
+        <div id="prep-prev" class="prep-prev"></div>
+        <div id="prep-sentence" class="prep-sentence"></div>
+        <div id="prep-translation" class="prep-translation" hidden></div>
+        <div id="prep-word" class="prep-word"></div>
+        <div class="prep-actions">
+          <button data-key="Space">Translation <kbd>Space</kbd></button>
+          <button data-key="Tab">Next word <kbd>Tab</kbd></button>
+          <button data-key="a">Add <kbd>A</kbd></button>
+          <button data-key="s">Know it <kbd>S</kbd></button>
+          <button data-key="Enter" class="primary">Next <kbd>Enter</kbd></button>
+        </div>
+      </div>
+      <div id="prep-status" class="status"></div>
+    </section>
+
+    <section id="tab-cards" class="tab-body" hidden>
+      <div class="cards-head">
+        <div id="anki-state" class="status"></div>
+        <div class="row">
+          <button id="cards-retry">Send to Anki now</button>
+          <button id="cards-export">Export waiting cards</button>
+          <button id="cards-export-all" class="link">Export all</button>
+        </div>
+      </div>
+      <h3>Waiting for Anki</h3>
+      <ul id="cards-queue" class="card-list"></ul>
+      <h3>Sent</h3>
+      <ul id="cards-sent" class="card-list"></ul>
+    </section>
+  </main>
+
+  <aside id="popover" class="popover" hidden>
+    <button class="icon close" id="popover-close" aria-label="Close">✕</button>
+    <div id="popover-body"></div>
+  </aside>
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>
