@@ -44,3 +44,4 @@ summary { cursor: pointer; color: var(--accent); }
 .steps li.on { color: var(--fg); font-weight: 600; }
 footer { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; padding: 12px 0; background: var(--bg); }
 [hidden] { display: none !important; }
+button:disabled { opacity: .45; cursor: not-allowed; }

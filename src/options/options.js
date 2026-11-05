@@ -8,6 +8,8 @@ const $ = (id) => document.getElementById(id);
 const wizard = location.hash === '#welcome';
 let settings;
 let step = 0;
+// The wizard's AI step only unlocks Next after a successful Test.
+let providerOk = false;
 
 function status(el, text, kind = '') {
   el.textContent = text;
@@ -69,6 +71,12 @@ function renderProviderConfig() {
   const model = cfg.model || p.defaultModel;
   $('model').innerHTML = model ? `<option>${model}</option>` : '<option value="">Press Test to load models</option>';
   status($('provider-status'), '');
+  setProviderOk(false);
+}
+
+function setProviderOk(ok) {
+  providerOk = ok;
+  if (wizard) updateNav();
 }
 
 async function saveProviderField(field, value) {
@@ -77,6 +85,7 @@ async function saveProviderField(field, value) {
 
 $('apiKey').addEventListener('change', () => saveProviderField('apiKey', $('apiKey').value.trim()));
 $('host').addEventListener('change', () => saveProviderField('host', $('host').value.trim()));
+for (const id of ['apiKey', 'host']) $(id).addEventListener('input', () => setProviderOk(false));
 $('model').addEventListener('change', () => saveProviderField('model', $('model').value));
 
 $('test-provider').addEventListener('click', async () => {
@@ -85,6 +94,7 @@ $('test-provider').addEventListener('click', async () => {
   if (p.fields.includes('host')) await saveProviderField('host', $('host').value.trim());
   const el = $('provider-status');
   status(el, 'Checking…');
+  setProviderOk(false);
   try {
     const models = await p.listModels(providerCfg());
     if (models.length) {
@@ -95,6 +105,7 @@ $('test-provider').addEventListener('click', async () => {
       throw new Error('Ollama has no models yet. Run "ollama pull llama3.2" first.');
     }
     status(el, await testProvider(settings), 'ok');
+    setProviderOk(true);
   } catch (e) {
     let msg = e.message;
     if (p.id === 'ollama' && /403|reach/.test(msg)) msg += ' Start Ollama with OLLAMA_ORIGINS=chrome-extension://* set.';
@@ -195,7 +206,16 @@ function showStep(n) {
   document.querySelectorAll('#steps li').forEach((li) => li.classList.toggle('on', Number(li.dataset.step) === n));
   $('back').hidden = n === 0;
   $('next').textContent = n === 3 ? 'Finish' : 'Next';
+  updateNav();
   window.scrollTo(0, 0);
+}
+
+function updateNav() {
+  const locked = step === 1 && !providerOk;
+  $('next').disabled = locked;
+  $('next').title = locked ? 'Paste your key and press Test first' : '';
+  $('skip').hidden = !locked;
+  $('saved').textContent = locked ? 'Press Test to continue' : '';
 }
 
 function setupWizard() {
@@ -204,6 +224,7 @@ function setupWizard() {
   document.querySelectorAll('[data-settings-only]').forEach((s) => (s.hidden = true));
   $('next').hidden = false;
   $('back').addEventListener('click', () => showStep(step - 1));
+  $('skip').addEventListener('click', () => showStep(step + 1));
   $('next').addEventListener('click', async () => {
     if (step < 3) return showStep(step + 1);
     await save({ setupDone: true });
