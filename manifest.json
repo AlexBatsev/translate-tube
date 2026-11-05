@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "Translate Tube",
+  "short_name": "Translate Tube",
+  "version": "0.1.0",
+  "description": "Learn a language from YouTube: interactive transcript, contextual AI translations, pre-watch word prep, and one-key cards to Anki.",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "src/icons/icon16.png",
+    "32": "src/icons/icon32.png",
+    "48": "src/icons/icon48.png",
+    "128": "src/icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Open Translate Tube",
+    "default_icon": {
+      "16": "src/icons/icon16.png",
+      "32": "src/icons/icon32.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
+  },
+  "options_page": "src/options/options.html",
+  "permissions": ["storage", "sidePanel", "tabs", "alarms", "downloads", "scripting"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "http://127.0.0.1:8765/*",
+    "http://localhost:8765/*",
+    "http://localhost:11434/*",
+    "http://127.0.0.1:11434/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.anthropic.com/*",
+    "https://api.openai.com/*",
+    "https://api-free.deepl.com/*",
+    "https://api.deepl.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["src/content/main-world.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["src/content/youtube.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+T" },
+      "description": "Open the Translate Tube side panel"
+    }
+  }
+}

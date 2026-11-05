@@ -1,0 +1,10 @@
+.card { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 20px; text-align: center; color: #1d1d1f; background: #fafafa; line-height: 1.45; }
+.nightMode.card, .night_mode .card { color: #ececec; background: #1e1e1e; }
+.tt-word { font-size: 32px; font-weight: 650; margin: 12px 0; }
+.tt-sentence { font-size: 18px; opacity: .85; font-style: italic; max-width: 36em; margin: 0 auto; }
+.tt-sentence b { font-style: normal; text-decoration: underline; }
+.tt-translation { font-size: 26px; margin: 10px 0; }
+.tt-note { font-size: 16px; opacity: .8; max-width: 34em; margin: 8px auto; }
+.tt-sentence-tr { font-size: 16px; opacity: .7; font-style: italic; max-width: 36em; margin: 8px auto; }
+.tt-source { margin-top: 14px; font-size: 15px; }
+.tt-source a { color: #c4302b; text-decoration: none; }

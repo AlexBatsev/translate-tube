@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Translate Tube settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <header>
+      <img src="../icons/icon48.png" alt="" width="40" height="40">
+      <div>
+        <h1>Translate Tube</h1>
+        <p id="subtitle" class="muted">Settings</p>
+      </div>
+    </header>
+
+    <ol id="steps" class="steps" hidden>
+      <li data-step="0">Languages</li><li data-step="1">AI</li><li data-step="2">Your level</li><li data-step="3">Anki</li>
+    </ol>
+
+    <section class="panel" data-step="0">
+      <h2>Languages</h2>
+      <div class="grid2">
+        <label>I am learning<select id="learningLang"></select></label>
+        <label>Translate into<select id="nativeLang"></select></label>
+      </div>
+    </section>
+
+    <section class="panel" data-step="1">
+      <h2>AI provider</h2>
+      <p class="muted">Translations and memory notes come from an AI service using your own key. Keys stay in this browser.</p>
+      <div id="providers" class="providers"></div>
+      <div id="provider-config" class="provider-config">
+        <label id="field-apiKey">API key <a id="key-link" target="_blank" rel="noopener">Get a key</a>
+          <input id="apiKey" type="password" autocomplete="off" spellcheck="false">
+        </label>
+        <label id="field-host">Ollama address<input id="host" type="url" spellcheck="false"></label>
+        <div class="row">
+          <button id="test-provider">Test</button>
+          <span id="provider-status" class="status"></span>
+        </div>
+        <label id="field-model">Model
+          <select id="model"></select>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel" data-step="2">
+      <h2>Your level</h2>
+      <p class="muted">This decides which words Prepare highlights. It also learns from you: every word you skip with <kbd>S</kbd> is never highlighted again.</p>
+      <div id="levels" class="levels"></div>
+      <details id="self-check-box">
+        <summary>Not sure? Take a 30-second check</summary>
+        <p class="muted">Click every word you know well.</p>
+        <div id="self-check" class="chips"></div>
+        <button id="self-check-done">Set my level</button>
+      </details>
+      <h3>Words I already know</h3>
+      <p class="muted">Optional. Paste or upload a list (one word per line; "word — translation" lines and CSV work too). These are never highlighted.</p>
+      <textarea id="known-input" rows="4" placeholder="apple&#10;give up&#10;nevertheless"></textarea>
+      <div class="row">
+        <button id="known-add">Add words</button>
+        <label class="file">Upload file<input id="known-file" type="file" accept=".txt,.csv,.tsv,.md"></label>
+        <span id="known-count" class="muted"></span>
+        <button id="known-clear" class="link">Clear list</button>
+      </div>
+    </section>
+
+    <section class="panel" data-step="3">
+      <h2>Anki</h2>
+      <p class="muted">Cards go to Anki desktop through the free <a href="https://ankiweb.net/shared/info/2055492159" target="_blank" rel="noopener">AnkiConnect</a> add-on. If Anki is closed, cards wait here and are sent when it opens.</p>
+      <div class="grid2">
+        <label>Deck<input id="deck" type="text"></label>
+        <label>AnkiConnect address<input id="ankiUrl" type="url" spellcheck="false"></label>
+      </div>
+      <label>AnkiConnect API key <span class="muted">(only if you set one in AnkiConnect)</span><input id="ankiKey" type="password" autocomplete="off"></label>
+      <div class="row">
+        <button id="anki-connect">Connect to Anki</button>
+        <span id="anki-status" class="status"></span>
+      </div>
+      <p class="muted small">Anki will ask "allow this extension?" the first time: click Yes.</p>
+    </section>
+
+    <section class="panel" data-settings-only>
+      <h2>While watching</h2>
+      <label class="check"><input id="pauseOnClick" type="checkbox"> Pause the video when I click a word</label>
+    </section>
+
+    <footer>
+      <button id="back" hidden>Back</button>
+      <span id="saved" class="muted"></span>
+      <button id="next" class="primary" hidden>Next</button>
+    </footer>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

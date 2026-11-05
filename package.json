@@ -1,0 +1,19 @@
+{
+  "name": "translate-tube",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome/Edge extension for learning languages from YouTube with AI translations and Anki cards.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "lint": "eslint .",
+    "check": "node scripts/check-manifest.js",
+    "build": "node scripts/check-manifest.js && sh scripts/build.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.17.0",
+    "eslint": "9.17.0",
+    "globals": "15.14.0"
+  }
+}
