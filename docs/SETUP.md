@@ -19,7 +19,7 @@ The setup page opens by itself. If not, right-click the toolbar icon → **Optio
 
 1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and sign in with a Google account.
 2. Click **Create API key** and copy it.
-3. In the setup page choose **Google Gemini**, paste the key, press **Test**. You should see a green "Works" line. The model list fills in by itself; the default is fine.
+3. In the setup page choose **Google Gemini**, paste the key, press **Test**. You should see a green "Works with …" line. Leave the model on **Automatic**.
 
 The free tier has a daily limit, which is plenty for watching videos. Other providers are described in the [README](../README.md#ai-providers).
 

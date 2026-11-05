@@ -1,6 +1,6 @@
-import { getProvider } from './providers/index.js';
+import { getProvider, rankModels } from './providers/index.js';
 import { languageName } from './languages.js';
-import { LEVELS } from './storage.js';
+import { LEVELS, getSettings, saveSettings } from './storage.js';
 
 export function parseJsonLoose(text) {
   const cleaned = String(text).replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/, '').trim();
@@ -33,10 +33,75 @@ function system(settings) {
   ].join('\n');
 }
 
-function providerConfig(settings) {
-  const provider = getProvider(settings.provider);
-  return { provider, cfg: settings.providers[provider.id] ?? {} };
+// ---- running a prompt, with Automatic model choice ----
+
+const TIMEOUT = { explain: 25000, analyze: 90000, test: 25000 };
+
+// Errors where another model may work: retired, overloaded, rate-limited,
+// no answer, or a model that does not accept this kind of request.
+export function shouldTryNextModel(e) {
+  if (e.timeout) return true;
+  if ([404, 429, 500, 502, 503, 504].includes(e.status)) return true;
+  return e.status === 400 && /(model|instruction|not supported|not enabled|unsupported)/i.test(e.message);
 }
+
+async function updateProviderCfg(providerId, patch) {
+  const s = await getSettings();
+  await saveSettings({ providers: { [providerId]: { ...s.providers[providerId], ...patch } } });
+}
+
+async function markModel(providerId, model, ok) {
+  const s = await getSettings();
+  const status = s.providers[providerId]?.modelStatus ?? {};
+  if (status[model] === (ok ? 'ok' : 'fail')) return;
+  await updateProviderCfg(providerId, { modelStatus: { ...status, [model]: ok ? 'ok' : 'fail' } });
+}
+
+export async function loadModels(settings) {
+  const provider = getProvider(settings.provider);
+  const cfg = settings.providers[provider.id] ?? {};
+  const models = await provider.listModels(cfg);
+  await updateProviderCfg(provider.id, { models });
+  return models;
+}
+
+async function run(settings, req, { maxTries = 5, onAttempt } = {}) {
+  const provider = getProvider(settings.provider);
+  const cfg = settings.providers[provider.id] ?? {};
+  if (cfg.model) {
+    onAttempt?.(cfg.model);
+    try {
+      const text = await provider.complete(cfg, req);
+      await markModel(provider.id, cfg.model, true);
+      return { text, model: cfg.model };
+    } catch (e) {
+      if (shouldTryNextModel(e)) await markModel(provider.id, cfg.model, false);
+      throw e;
+    }
+  }
+  let models = cfg.models;
+  if (!models?.length) models = await loadModels(settings);
+  const ranked = rankModels(provider, models);
+  if (!ranked.length) throw new Error('No usable models found for this key.');
+  const order = ranked.includes(cfg.autoModel) ? [cfg.autoModel, ...ranked.filter((m) => m !== cfg.autoModel)] : ranked;
+  let lastError;
+  for (const model of order.slice(0, maxTries)) {
+    onAttempt?.(model);
+    try {
+      const text = await provider.complete({ ...cfg, model }, req);
+      if (model !== cfg.autoModel) await updateProviderCfg(provider.id, { autoModel: model });
+      await markModel(provider.id, model, true);
+      return { text, model };
+    } catch (e) {
+      if (!shouldTryNextModel(e)) throw e;
+      await markModel(provider.id, model, false);
+      lastError = e;
+    }
+  }
+  throw lastError;
+}
+
+// ---- prompts ----
 
 export function buildExplainPrompt({ term, sentence, previous }) {
   return [
@@ -44,25 +109,27 @@ export function buildExplainPrompt({ term, sentence, previous }) {
     `Sentence: "${sentence}"`,
     `Explain: "${term}"`,
     '',
-    'If the term is part of a larger idiom or phrasal verb in this sentence, explain the whole expression and put it in "term".',
-    'Return: {"term": string, "lemma": dictionary form, "translation": short contextual translation, "note": memory note, "isIdiom": boolean, "sentenceTranslation": translation of the sentence}'
+    'If the term is part of a larger idiom or phrasal verb in this sentence, explain the whole expression and put it in "term" exactly as it appears in the sentence.',
+    'Return: {"term": string, "lemma": dictionary form of the whole expression (e.g. "blew it" -> "blow it", "kicked off" -> "kick off"), "translation": short contextual translation of the dictionary form, "note": memory note, "isIdiom": boolean, "sentenceTranslation": translation of the sentence, "termInTranslation": the exact words of sentenceTranslation that translate the term}'
   ].filter(Boolean).join('\n');
 }
 
 export async function explainTerm(settings, { term, sentence, previous }) {
-  const { provider, cfg } = providerConfig(settings);
+  const provider = getProvider(settings.provider);
+  const cfg = settings.providers[provider.id] ?? {};
   if (!provider.canExplain) {
     const [translation, sentenceTranslation] = await provider.translate(cfg, [term, sentence], {
       from: settings.learningLang,
       to: settings.nativeLang,
       context: sentence
     });
-    return { term, lemma: term, translation, note: '', isIdiom: false, sentenceTranslation };
+    return { term, lemma: term, translation, note: '', isIdiom: false, sentenceTranslation, termInTranslation: '' };
   }
-  const text = await provider.complete(cfg, {
+  const { text } = await run(settings, {
     system: system(settings),
     prompt: buildExplainPrompt({ term, sentence, previous }),
-    json: true
+    json: true,
+    timeoutMs: TIMEOUT.explain
   });
   const out = parseJsonLoose(text);
   return {
@@ -71,7 +138,8 @@ export async function explainTerm(settings, { term, sentence, previous }) {
     translation: out.translation || '',
     note: out.note || '',
     isIdiom: !!out.isIdiom,
-    sentenceTranslation: out.sentenceTranslation || ''
+    sentenceTranslation: out.sentenceTranslation || '',
+    termInTranslation: out.termInTranslation || ''
   };
 }
 
@@ -85,12 +153,13 @@ export function buildAnalyzePrompt(sentences, { known = [], deck = [] } = {}) {
     'Sentences:',
     ...sentences.map((s) => `${s.id}: ${s.text}`),
     '',
-    'Return: {"sentences": [{"id": number, "translation": string, "hard": [{"text": exact text as it appears in the sentence, "lemma": dictionary form, "translation": contextual translation, "note": memory note}]}]}'
+    'Return: {"sentences": [{"id": number, "translation": string, "hard": [{"text": exact text as it appears in the sentence, "lemma": dictionary form of the whole expression, "translation": contextual translation, "note": memory note, "inTranslation": the exact words of this sentence\'s translation that translate it}]}]}'
   ].filter(Boolean).join('\n');
 }
 
 export async function analyzeSentences(settings, sentences, words) {
-  const { provider, cfg } = providerConfig(settings);
+  const provider = getProvider(settings.provider);
+  const cfg = settings.providers[provider.id] ?? {};
   if (!provider.canExplain) {
     const translations = await provider.translate(cfg, sentences.map((s) => s.text), {
       from: settings.learningLang,
@@ -98,10 +167,11 @@ export async function analyzeSentences(settings, sentences, words) {
     });
     return sentences.map((s, i) => ({ id: s.id, translation: translations[i], hard: [] }));
   }
-  const text = await provider.complete(cfg, {
+  const { text } = await run(settings, {
     system: system(settings),
     prompt: buildAnalyzePrompt(sentences, words),
-    json: true
+    json: true,
+    timeoutMs: TIMEOUT.analyze
   });
   const out = parseJsonLoose(text);
   const byId = new Map((out.sentences ?? []).map((s) => [Number(s.id), s]));
@@ -115,12 +185,24 @@ export async function analyzeSentences(settings, sentences, words) {
   });
 }
 
-export async function testProvider(settings) {
-  const { provider, cfg } = providerConfig(settings);
+// Returns { message, model } or throws. onAttempt(model) reports progress.
+export async function testProvider(settings, onAttempt) {
+  const provider = getProvider(settings.provider);
+  const cfg = settings.providers[provider.id] ?? {};
   if (!provider.canExplain) {
-    const [t] = await provider.translate(cfg, ['Hello, world!'], { from: settings.learningLang, to: settings.nativeLang });
-    return `DeepL works: "${t}"`;
+    const [t] = await provider.translate(cfg, ['Hello, world!'], { from: 'en', to: settings.nativeLang });
+    return { message: `Works: "Hello, world!" = ${t}`, model: '' };
   }
-  const r = await explainTerm(settings, { term: 'break the ice', sentence: "Let's play a game to break the ice." });
-  return `Works: "${r.term}" = ${r.translation}`;
+  const { text, model } = await run(
+    settings,
+    {
+      system: system(settings),
+      prompt: buildExplainPrompt({ term: 'break the ice', sentence: "Let's play a game to break the ice." }),
+      json: true,
+      timeoutMs: TIMEOUT.test
+    },
+    { maxTries: 4, onAttempt }
+  );
+  const r = parseJsonLoose(text);
+  return { message: `Works with ${model}: "break the ice" = ${r.translation}`, model };
 }

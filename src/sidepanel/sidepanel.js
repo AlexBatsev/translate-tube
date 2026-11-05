@@ -1,5 +1,5 @@
 import { getSettings, getWordSets, addWords, normalizeWord } from '../lib/storage.js';
-import { parseJson3, buildSentences, sentenceAt, tokenize, markHighlights } from '../lib/transcript.js';
+import { parseJson3, buildSentences, sentenceAt, tokenize, markHighlights, findPhrases } from '../lib/transcript.js';
 import { explainTerm, analyzeSentences } from '../lib/ai.js';
 import { getProvider } from '../lib/providers/index.js';
 import { cardsToTsv, escapeHtml } from '../lib/card.js';
@@ -186,6 +186,18 @@ function sentenceHtml(text, highlights = [], currentHighlight = -1) {
   return html;
 }
 
+// Highlights the parts of a translation that match the hard words.
+function highlightPhrases(text, phrases, current = -1) {
+  let html = '';
+  let pos = 0;
+  for (const r of findPhrases(text, phrases)) {
+    html += escapeHtml(text.slice(pos, r.start));
+    html += `<span class="hard${r.index === current ? ' current' : ''}">${escapeHtml(text.slice(r.start, r.end))}</span>`;
+    pos = r.end;
+  }
+  return html + escapeHtml(text.slice(pos));
+}
+
 function renderTranscript() {
   const el = $('transcript');
   el.innerHTML = state.sentences
@@ -275,7 +287,7 @@ function renderLookup(card) {
     <div class="term">${escapeHtml(card.term)}${card.lemma && card.lemma.toLowerCase() !== card.term.toLowerCase() ? `<small>${escapeHtml(card.lemma)}</small>` : ''}${card.isIdiom ? '<small>idiom</small>' : ''}</div>
     <div class="translation">${escapeHtml(card.translation)}</div>
     ${card.note ? `<div class="note">${escapeHtml(card.note)}</div>` : ''}
-    ${card.sentenceTranslation ? `<div class="sent-tr">${escapeHtml(card.sentenceTranslation)}</div>` : ''}
+    ${card.sentenceTranslation ? `<div class="sent-tr">${highlightPhrases(card.sentenceTranslation, [card.termInTranslation], 0)}</div>` : ''}
     <div class="row">
       <button class="primary" id="pop-add">${inDeck ? 'Add again' : 'Add to Anki'} <kbd>A</kbd></button>
       <button id="pop-replay">▶ Replay line</button>
@@ -322,7 +334,7 @@ async function addCard(card) {
       }
     });
     state.words = await getWordSets();
-    toast(r.queued ? `Saved. Anki is closed, so it will be sent later (${r.left} waiting).` : `Added “${card.term}” to Anki`);
+    toast(r.queued ? `Saved. Anki is closed, so it will be sent later (${r.left} waiting).` : `Added “${card.lemma || card.term}” to Anki`);
     refreshQueueCount();
     if (state.popoverCard === card) hidePopover();
     // Refresh underline styles for the newly added word.
@@ -505,7 +517,7 @@ function renderPrep() {
   $('prep-pos').textContent = `Sentence ${prep.idx + 1} of ${state.sentences.length} · ${fmtTime(s.start)}`;
   $('prep-prev').textContent = state.sentences[prep.idx - 1]?.text ?? '';
   $('prep-sentence').innerHTML = sentenceHtml(s.text, items.map((h) => h.text), items.length ? prep.wordIdx : -1);
-  $('prep-translation').textContent = r?.translation ?? '';
+  $('prep-translation').innerHTML = highlightPhrases(r?.translation ?? '', items.map((h) => h.inTranslation), items.length ? prep.wordIdx : -1);
   $('prep-translation').hidden = !prep.showTranslation;
   const cur = items[prep.wordIdx];
   $('prep-word').innerHTML = cur
@@ -529,7 +541,7 @@ $('prep-sentence').addEventListener('click', async (e) => {
   try {
     const r = await explainTerm(state.settings, { term: w.textContent, sentence: s.text, previous: state.sentences[prep.idx - 1]?.text });
     const text = s.text.toLowerCase().includes(r.term.toLowerCase()) ? r.term : w.textContent;
-    prep.extra.push({ text, lemma: r.lemma, translation: r.translation, note: r.note });
+    prep.extra.push({ text, lemma: r.lemma, translation: r.translation, note: r.note, inTranslation: r.termInTranslation });
     prep.wordIdx = prepItems().length - 1;
     renderPrep();
   } catch (err) {

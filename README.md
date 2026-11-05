@@ -23,12 +23,12 @@ There is no server: everything runs in your browser, with your own AI key.
 
 ## AI providers
 
-Pick one in Settings, paste a key, press **Test**, choose a model.
+Pick one in Settings, paste a key, press **Test**. The model is chosen automatically (the newest fast model that answers, switching if one is retired or overloaded); you can also pick one yourself.
 
 | Provider | Cost | Notes |
 | --- | --- | --- |
 | Google Gemini | free tier | Recommended. Key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
-| Anthropic Claude | paid API | Key from [console.anthropic.com](https://console.anthropic.com/settings/keys). A Claude.ai chat subscription can't be used. |
+| Anthropic Claude | paid API | Key from [console.anthropic.com](https://console.anthropic.com/settings/keys) |
 | OpenAI | paid API | Key from [platform.openai.com](https://platform.openai.com/api-keys) |
 | DeepL | free tier | Translation only: no memory notes, no hard-word highlighting |
 | Ollama | free, local | Runs on your computer. Start Ollama with `OLLAMA_ORIGINS=chrome-extension://*` |

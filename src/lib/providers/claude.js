@@ -1,7 +1,5 @@
 import { requestJson, ProviderError } from './http.js';
 
-// Uses the Claude API with your own API key (console.anthropic.com).
-// A Claude.ai chat subscription cannot be used here.
 const BASE = 'https://api.anthropic.com/v1';
 
 function headers(cfg) {
@@ -15,25 +13,25 @@ function headers(cfg) {
 
 export default {
   id: 'claude',
-  name: 'Anthropic Claude (API key)',
-  blurb: 'Paid API. Get a key at console.anthropic.com. A Claude.ai subscription does not work here.',
+  name: 'Anthropic Claude',
+  blurb: 'Paid API.',
   keyUrl: 'https://console.anthropic.com/settings/keys',
   fields: ['apiKey'],
   canExplain: true,
-  preferredModels: [/haiku/, /sonnet/],
-  defaultModel: 'claude-haiku-4-5',
+  autoModels: [/haiku/, /sonnet/],
 
   async listModels(cfg) {
-    const data = await requestJson(`${BASE}/models?limit=100`, { headers: headers(cfg) });
+    const data = await requestJson(`${BASE}/models?limit=1000`, { headers: headers(cfg), timeoutMs: 20000 });
     return (data.data ?? []).map((m) => m.id);
   },
 
-  async complete(cfg, { system, prompt }) {
+  async complete(cfg, { system, prompt, timeoutMs }) {
     const data = await requestJson(`${BASE}/messages`, {
       method: 'POST',
+      timeoutMs,
       headers: headers(cfg),
       body: {
-        model: cfg.model || this.defaultModel,
+        model: cfg.model,
         max_tokens: 4096,
         system,
         messages: [{ role: 'user', content: prompt }]

@@ -48,8 +48,9 @@ async function updateBadge() {
 }
 
 async function addCard(data) {
-  const fields = buildCard(data);
-  await enqueue({ fields, term: data.term, translation: data.translation });
+  // Card front shows the dictionary form; the sentence keeps the form used in the video.
+  const fields = buildCard({ ...data, term: data.lemma || data.term, surface: data.term });
+  await enqueue({ fields, term: data.lemma || data.term, translation: data.translation });
   await addWords('deckWords', [normalizeWord(data.lemma || data.term)]);
   const result = await flush();
   return { ...result, queued: result.left > 0 };

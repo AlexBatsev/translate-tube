@@ -7,10 +7,11 @@ export const DEFAULT_SETTINGS = {
   nativeLang: 'uk',
   provider: 'gemini',
   providers: {
+    // model '' = Automatic. autoModel / models / modelStatus are filled in at runtime.
     gemini: { apiKey: '', model: '' },
     claude: { apiKey: '', model: '' },
     openai: { apiKey: '', model: '' },
-    deepl: { apiKey: '', model: '' },
+    deepl: { apiKey: '' },
     ollama: { host: 'http://localhost:11434', model: '' }
   },
   // 1 (beginner) .. 6 (near native). Shown to the user in plain words.
@@ -20,8 +21,7 @@ export const DEFAULT_SETTINGS = {
     deck: 'Translate Tube',
     key: ''
   },
-  pauseOnClick: true,
-  showTranslationsInTranscript: false
+  pauseOnClick: true
 };
 
 export const LEVELS = [
@@ -70,13 +70,6 @@ export async function addWords(listName, words) {
   }
   await chrome.storage.local.set({ [listName]: [...set] });
   return set.size;
-}
-
-export async function removeWords(listName, words) {
-  const data = await chrome.storage.local.get(listName);
-  const drop = new Set(words.map(normalizeWord));
-  const kept = (data[listName] ?? []).filter((w) => !drop.has(w));
-  await chrome.storage.local.set({ [listName]: kept });
 }
 
 export function normalizeWord(w) {

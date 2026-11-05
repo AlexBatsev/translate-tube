@@ -20,12 +20,14 @@ export function boldTerm(sentence, term) {
   return safe.replace(new RegExp(`(^|[^\\p{L}])(${esc})(?=[^\\p{L}]|$)`, 'iu'), '$1<b>$2</b>');
 }
 
-export function buildCard({ term, translation, note, sentence, sentenceTranslation, videoId, videoTitle, ms }) {
+// `term` is the dictionary form shown on the card front ("blow it");
+// `surface` is the form used in the video ("blew it"), bolded in the sentence.
+export function buildCard({ term, surface, translation, note, sentence, sentenceTranslation, videoId, videoTitle, ms }) {
   return {
     Word: escapeHtml(term),
     Translation: escapeHtml(translation),
     Note: escapeHtml(note),
-    Sentence: sentence ? boldTerm(sentence, term) : '',
+    Sentence: sentence ? boldTerm(sentence, surface || term) : '',
     SentenceTranslation: escapeHtml(sentenceTranslation),
     VideoTitle: escapeHtml(videoTitle || 'YouTube'),
     VideoLink: videoLink(videoId, ms)

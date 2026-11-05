@@ -11,12 +11,11 @@ const TARGET_FIX = { en: 'EN-US', pt: 'PT-PT', zh: 'ZH-HANS', nb: 'NB' };
 export default {
   id: 'deepl',
   name: 'DeepL (translation only)',
-  blurb: 'Plain translations, no memory notes or hard-word detection. Free API key at deepl.com/pro-api.',
+  blurb: 'Free tier. Translation only: no memory notes, no hard-word highlighting.',
   keyUrl: 'https://www.deepl.com/your-account/keys',
   fields: ['apiKey'],
   canExplain: false,
-  preferredModels: [],
-  defaultModel: '',
+  autoModels: [],
 
   async listModels(cfg) {
     await requestJson(`${base(cfg)}/usage`, { headers: { authorization: `DeepL-Auth-Key ${cfg.apiKey}` } });

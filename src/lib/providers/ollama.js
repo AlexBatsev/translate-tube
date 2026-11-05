@@ -9,23 +9,22 @@ function host(cfg) {
 export default {
   id: 'ollama',
   name: 'Ollama (local, free)',
-  blurb: 'Runs a model on your own computer. Needs OLLAMA_ORIGINS=chrome-extension://* set.',
+  blurb: 'Free. Runs a model on your own computer.',
   keyUrl: 'https://ollama.com/download',
   fields: ['host'],
   canExplain: true,
-  preferredModels: [/llama3/, /qwen/, /gemma/],
-  defaultModel: '',
+  autoModels: [/llama/, /qwen/, /gemma/, /mistral/],
 
   async listModels(cfg) {
-    const data = await requestJson(`${host(cfg)}/api/tags`);
-    return (data.models ?? []).map((m) => m.name);
+    const data = await requestJson(`${host(cfg)}/api/tags`, { timeoutMs: 10000 });
+    return (data.models ?? []).map((m) => m.name).filter((n) => !/(embed|bge|minilm)/i.test(n));
   },
 
-  async complete(cfg, { system, prompt, json }) {
-    if (!cfg.model) throw new ProviderError('Pick an Ollama model in Settings.');
+  async complete(cfg, { system, prompt, json, timeoutMs }) {
     const data = await requestJson(`${host(cfg)}/api/chat`, {
       method: 'POST',
-      timeoutMs: 180000,
+      // Local models can be slow to load the first time.
+      timeoutMs: Math.max(timeoutMs ?? 0, 120000),
       body: {
         model: cfg.model,
         stream: false,

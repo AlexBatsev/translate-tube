@@ -44,6 +44,7 @@
         <label id="field-model">Model
           <select id="model"></select>
         </label>
+        <p id="model-hint" class="muted small">Automatic picks the newest fast model that answers and switches if one stops working.</p>
       </div>
     </section>
 
@@ -71,11 +72,14 @@
     <section class="panel" data-step="3">
       <h2>Anki</h2>
       <p class="muted">Cards go to Anki desktop through the free <a href="https://ankiweb.net/shared/info/2055492159" target="_blank" rel="noopener">AnkiConnect</a> add-on. If Anki is closed, cards wait here and are sent when it opens.</p>
-      <div class="grid2">
-        <label>Deck<input id="deck" type="text"></label>
-        <label>AnkiConnect address<input id="ankiUrl" type="url" spellcheck="false"></label>
-      </div>
-      <label>AnkiConnect API key <span class="muted">(only if you set one in AnkiConnect)</span><input id="ankiKey" type="password" autocomplete="off"></label>
+      <label>Deck<input id="deck" type="text"></label>
+      <details>
+        <summary>Advanced</summary>
+        <div class="grid2">
+          <label>AnkiConnect address<input id="ankiUrl" type="url" spellcheck="false"></label>
+          <label>AnkiConnect API key<input id="ankiKey" type="password" autocomplete="off"></label>
+        </div>
+      </details>
       <div class="row">
         <button id="anki-connect">Connect to Anki</button>
         <span id="anki-status" class="status"></span>

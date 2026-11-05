@@ -1,7 +1,7 @@
 import { getSettings, saveSettings, addWords, LEVELS } from '../lib/storage.js';
 import { LANGUAGES } from '../lib/languages.js';
-import { PROVIDERS, getProvider, pickModel } from '../lib/providers/index.js';
-import { testProvider } from '../lib/ai.js';
+import { PROVIDERS, getProvider, rankModels } from '../lib/providers/index.js';
+import { testProvider, loadModels } from '../lib/ai.js';
 import { SELF_CHECK, levelFromCheck, parseWordList } from '../lib/level.js';
 
 const $ = (id) => document.getElementById(id);
@@ -45,7 +45,7 @@ function fillLanguages() {
 function renderProviders() {
   $('providers').innerHTML = PROVIDERS.map(
     (p) => `<label class="option"><input type="radio" name="provider" value="${p.id}" ${p.id === settings.provider ? 'checked' : ''}>
-      <div><b>${p.name}${p.id === 'gemini' ? ' · recommended' : ''}</b><span>${p.blurb}</span></div></label>`
+      <div><b>${p.name}</b><span>${p.blurb}</span></div></label>`
   ).join('');
   $('providers').addEventListener('change', async (e) => {
     await save({ provider: e.target.value });
@@ -58,18 +58,31 @@ function providerCfg() {
   return settings.providers[settings.provider] ?? {};
 }
 
+function renderModels() {
+  const p = getProvider(settings.provider);
+  const cfg = providerCfg();
+  const mark = (m) => ({ ok: ' ✓', fail: ' ✗' })[cfg.modelStatus?.[m]] ?? '';
+  const auto = `Automatic (recommended)${cfg.autoModel ? ` · now ${cfg.autoModel}` : ''}`;
+  const models = cfg.models?.length ? rankModels(p, cfg.models) : [];
+  if (cfg.model && !models.includes(cfg.model)) models.unshift(cfg.model);
+  $('model').innerHTML =
+    `<option value="">${auto}</option>` +
+    models.map((m) => `<option value="${m}" ${m === cfg.model ? 'selected' : ''}>${m}${mark(m)}</option>`).join('');
+  $('model').value = cfg.model || '';
+}
+
 function renderProviderConfig() {
   const p = getProvider(settings.provider);
   const cfg = providerCfg();
   $('field-apiKey').hidden = !p.fields.includes('apiKey');
   $('field-host').hidden = !p.fields.includes('host');
-  $('field-model').hidden = p.id === 'deepl';
+  $('field-model').hidden = !p.canExplain;
+  $('model-hint').hidden = !p.canExplain;
   $('key-link').href = p.keyUrl;
   $('key-link').textContent = p.id === 'ollama' ? 'Download Ollama' : 'Get a key';
   $('apiKey').value = cfg.apiKey ?? '';
   $('host').value = cfg.host ?? '';
-  const model = cfg.model || p.defaultModel;
-  $('model').innerHTML = model ? `<option>${model}</option>` : '<option value="">Press Test to load models</option>';
+  renderModels();
   status($('provider-status'), '');
   setProviderOk(false);
 }
@@ -83,33 +96,65 @@ async function saveProviderField(field, value) {
   await save({ providers: { [settings.provider]: { ...providerCfg(), [field]: value } } });
 }
 
-$('apiKey').addEventListener('change', () => saveProviderField('apiKey', $('apiKey').value.trim()));
-$('host').addEventListener('change', () => saveProviderField('host', $('host').value.trim()));
+// A new key or address may see different models: forget what we learned.
+async function saveConnection(field, value) {
+  if ((providerCfg()[field] ?? '') === value) return;
+  await save({ providers: { [settings.provider]: { ...providerCfg(), [field]: value, models: [], autoModel: '', modelStatus: {} } } });
+  renderModels();
+}
+
+$('apiKey').addEventListener('change', () => saveConnection('apiKey', $('apiKey').value.trim()));
+$('host').addEventListener('change', () => saveConnection('host', $('host').value.trim()));
 for (const id of ['apiKey', 'host']) $(id).addEventListener('input', () => setProviderOk(false));
-$('model').addEventListener('change', () => saveProviderField('model', $('model').value));
+$('model').addEventListener('change', async () => {
+  await saveProviderField('model', $('model').value);
+  setProviderOk(false);
+  status($('provider-status'), 'Press Test to check this model.');
+});
 
 $('test-provider').addEventListener('click', async () => {
   const p = getProvider(settings.provider);
-  await saveProviderField('apiKey', $('apiKey').value.trim());
-  if (p.fields.includes('host')) await saveProviderField('host', $('host').value.trim());
+  if (p.fields.includes('apiKey')) await saveConnection('apiKey', $('apiKey').value.trim());
+  if (p.fields.includes('host')) await saveConnection('host', $('host').value.trim());
   const el = $('provider-status');
-  status(el, 'Checking…');
   setProviderOk(false);
+  $('test-provider').disabled = true;
+  let label = 'Checking';
+  let started = Date.now();
+  const tick = () => status(el, `${label}… ${Math.round((Date.now() - started) / 1000)}s`);
+  tick();
+  const timer = setInterval(tick, 1000);
   try {
-    const models = await p.listModels(providerCfg());
-    if (models.length) {
-      const chosen = pickModel(p, models, providerCfg().model);
-      $('model').innerHTML = models.map((m) => `<option ${m === chosen ? 'selected' : ''}>${m}</option>`).join('');
-      await saveProviderField('model', chosen);
-    } else if (p.id === 'ollama') {
-      throw new Error('Ollama has no models yet. Run "ollama pull llama3.2" first.');
+    if (p.canExplain) {
+      label = 'Loading models';
+      const models = await loadModels(settings);
+      settings = await getSettings();
+      renderModels();
+      if (!models.length) {
+        throw new Error(p.id === 'ollama' ? 'Ollama has no models yet. Run "ollama pull llama3.2" first.' : 'This key has no text models available.');
+      }
     }
-    status(el, await testProvider(settings), 'ok');
+    const r = await testProvider(settings, (model) => {
+      label = `Trying ${model}`;
+      started = Date.now();
+      tick();
+    });
+    settings = await getSettings();
+    renderModels();
+    clearInterval(timer);
+    status(el, r.message, 'ok');
     setProviderOk(true);
   } catch (e) {
+    clearInterval(timer);
+    settings = await getSettings();
+    renderModels();
     let msg = e.message;
+    if (e.timeout) msg += ' The model may be overloaded. Try again, or choose another model.';
     if (p.id === 'ollama' && /403|reach/.test(msg)) msg += ' Start Ollama with OLLAMA_ORIGINS=chrome-extension://* set.';
     status(el, msg, 'err');
+  } finally {
+    clearInterval(timer);
+    $('test-provider').disabled = false;
   }
 });
 

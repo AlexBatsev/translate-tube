@@ -1,7 +1,8 @@
 export class ProviderError extends Error {
-  constructor(message, status) {
+  constructor(message, status, { timeout = false } = {}) {
     super(message);
     this.status = status;
+    this.timeout = timeout;
   }
 }
 
@@ -17,7 +18,10 @@ export async function requestJson(url, { method = 'GET', headers = {}, body, tim
       signal: ctrl.signal
     });
   } catch (e) {
-    throw new ProviderError(e.name === 'AbortError' ? 'The request timed out.' : `Could not reach ${new URL(url).host}: ${e.message}`);
+    if (e.name === 'AbortError') {
+      throw new ProviderError(`No answer after ${Math.round(timeoutMs / 1000)} seconds.`, 0, { timeout: true });
+    }
+    throw new ProviderError(`Could not reach ${new URL(url).host}: ${e.message}`);
   } finally {
     clearTimeout(timer);
   }
