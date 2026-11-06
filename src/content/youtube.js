@@ -1,8 +1,18 @@
 // Isolated content script on youtube.com. Answers the side panel: video
 // position, play/pause/seek, and the caption track of the video.
 (() => {
-  if (window.__translateTube) return;
-  window.__translateTube = true;
+  // After the extension is updated, the old copy of this script stays in open
+  // tabs but can no longer talk to the extension. Only a live copy blocks a
+  // new one from starting.
+  const alive = () => {
+    try {
+      return !!chrome.runtime?.id;
+    } catch {
+      return false;
+    }
+  };
+  if (window.__translateTube?.alive()) return;
+  window.__translateTube = { alive };
 
   let seq = 0;
   const pending = new Map();
@@ -32,14 +42,31 @@
     });
   }
 
-  const video = () => document.querySelector('#movie_player video') ?? document.querySelector('video');
-  const currentVideoId = () => new URL(location.href).searchParams.get('v');
+  // Regular videos (watch?v=), Shorts (/shorts/ID) and live streams (/live/ID).
+  function currentVideoId() {
+    const u = new URL(location.href);
+    return u.searchParams.get('v') ?? u.pathname.match(/^\/(?:shorts|live)\/([\w-]{6,})/)?.[1] ?? null;
+  }
+  const isShorts = () => location.pathname.startsWith('/shorts/');
+
+  function video() {
+    if (isShorts()) {
+      return (
+        document.querySelector('ytd-reel-video-renderer[is-active] video') ??
+        document.querySelector('#shorts-player video') ??
+        [...document.querySelectorAll('video')].find((v) => !v.paused) ??
+        document.querySelector('video')
+      );
+    }
+    return document.querySelector('#movie_player video') ?? document.querySelector('video');
+  }
 
   function info() {
     const v = video();
     return {
       videoId: currentVideoId(),
-      title: document.querySelector('h1.ytd-watch-metadata')?.textContent?.trim() || document.title.replace(/ - YouTube$/, ''),
+      title: (!isShorts() && document.querySelector('h1.ytd-watch-metadata')?.textContent?.trim()) || document.title.replace(/^\(\d+\)\s*/, '').replace(/ - YouTube$/, ''),
+      shorts: isShorts(),
       ms: v ? Math.round(v.currentTime * 1000) : 0,
       paused: v ? v.paused : true,
       duration: v ? Math.round((v.duration || 0) * 1000) : 0
@@ -84,8 +111,8 @@
   // back empty, turn captions on for a moment so the player makes a signed
   // request, then reuse that URL for the language we want.
   async function transcript(lang) {
-    const meta = await askMain('tracks');
     const videoId = currentVideoId();
+    const meta = await askMain('tracks', { videoId });
     if (!meta || !meta.tracks?.length || meta.videoId !== videoId) {
       return { ok: false, reason: meta && meta.videoId === videoId ? 'no-captions' : 'not-ready' };
     }
@@ -107,7 +134,7 @@
     if (!json) {
       let urls = await askMain('captured', { videoId });
       if (!urls?.length) {
-        const btn = document.querySelector('.ytp-subtitles-button');
+        const btn = isShorts() ? null : document.querySelector('.ytp-subtitles-button');
         const wasOn = btn?.getAttribute('aria-pressed') === 'true';
         if (btn) {
           const wait = waitForCapture(videoId, 4000);

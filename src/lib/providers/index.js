@@ -1,11 +1,10 @@
 import gemini from './gemini.js';
 import claude from './claude.js';
 import openai from './openai.js';
-import deepl from './deepl.js';
 import ollama from './ollama.js';
 
 // To add a provider: create a module with the same shape and list it here.
-export const PROVIDERS = [gemini, claude, openai, deepl, ollama];
+export const PROVIDERS = [gemini, claude, openai, ollama];
 
 export function getProvider(id) {
   return PROVIDERS.find((p) => p.id === id) ?? gemini;

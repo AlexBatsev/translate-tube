@@ -9,7 +9,6 @@ export default {
   blurb: 'Paid API.',
   keyUrl: 'https://platform.openai.com/api-keys',
   fields: ['apiKey'],
-  canExplain: true,
   autoModels: [/^gpt-[\d.]+-mini$/, /^gpt-[\d.]+$/],
 
   async listModels(cfg) {
@@ -17,10 +16,11 @@ export default {
     return (data.data ?? []).map((m) => m.id).filter((id) => /^(gpt|o\d|chatgpt)/.test(id) && !NOT_TEXT.test(id));
   },
 
-  async complete(cfg, { system, prompt, json, timeoutMs }) {
+  async complete(cfg, { system, prompt, json, timeoutMs, signal }) {
     const data = await requestJson(`${BASE}/chat/completions`, {
       method: 'POST',
       timeoutMs,
+      signal,
       headers: { authorization: `Bearer ${cfg.apiKey}` },
       body: {
         model: cfg.model,

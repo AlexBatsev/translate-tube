@@ -18,17 +18,31 @@ export const state = {
   tab: 'transcript'
 };
 
-// Simple event bus between modules: 'analysis', 'words', 'level', 'video', 'drafts'.
+// Simple event bus between modules: 'analysis', 'words', 'level', 'drafts',
+// 'settings', 'tab-shown', 'show-tab', 'transcript'.
 export const bus = new EventTarget();
 export const emit = (name, detail) => bus.dispatchEvent(new CustomEvent(name, { detail }));
 export const on = (name, fn) => bus.addEventListener(name, (e) => fn(e.detail));
 
-export function toast(text, ms = 2400) {
+// action: optional { label, run } shown as a button (e.g. Undo).
+export function toast(text, ms = 2400, action = null) {
   const t = $('toast');
-  t.textContent = text;
+  t.textContent = '';
+  const span = document.createElement('span');
+  span.textContent = text;
+  t.append(span);
+  if (action) {
+    const b = document.createElement('button');
+    b.textContent = action.label;
+    b.addEventListener('click', () => {
+      t.hidden = true;
+      action.run();
+    });
+    t.append(b);
+  }
   t.hidden = false;
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => (t.hidden = true), ms);
+  toast.timer = setTimeout(() => (t.hidden = true), action ? Math.max(ms, 6000) : ms);
 }
 
 export function fmtTime(ms) {

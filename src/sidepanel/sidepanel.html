@@ -13,16 +13,36 @@
       <button role="tab" data-tab="prepare">Prepare</button>
       <button role="tab" data-tab="cards">Cards <span id="cards-count" class="pill" hidden></span></button>
     </nav>
-    <button id="open-settings" class="icon" title="Settings" aria-label="Settings">⚙</button>
+    <span class="top-actions">
+      <button id="undo-known" class="icon undo" title="Undo the last “I know it”" hidden>↶ <span id="undo-count"></span></button>
+      <button id="open-recent" class="icon" title="Recent videos" aria-label="Recent videos" aria-expanded="false">🕘</button>
+      <button id="open-settings" class="icon" title="Settings" aria-label="Settings">⚙</button>
+    </span>
   </header>
+  <div id="recent" class="recent" hidden>
+    <div class="recent-head"><b>Recent videos</b><button id="recent-close" class="icon" aria-label="Close">✕</button></div>
+    <ul id="recent-list" class="recent-list"></ul>
+  </div>
   <div id="video-title" class="video-title"></div>
   <div id="reminder" class="reminder" hidden></div>
 
   <main>
     <section id="tab-transcript" class="tab-body">
       <div class="bar">
-        <label class="check small"><input type="checkbox" id="show-tr"> Translation under each line</label>
+        <label class="small">Translation
+          <select id="show-tr">
+            <option value="off">off</option>
+            <option value="current">current line</option>
+            <option value="all">every line</option>
+          </select>
+        </label>
         <span id="analysis-state" class="muted small"></span>
+        <button id="legend-btn" class="icon small" title="What do the colours mean?" aria-expanded="false">?</button>
+      </div>
+      <div id="legend" class="legend" hidden>
+        <div><span class="hl">word</span> hard for your level: click for the meaning</div>
+        <div><span class="w deck">word</span> already in your Anki cards</div>
+        <div class="muted">Click any other word, or drag over a phrase, to translate it in context.</div>
       </div>
       <div id="transcript-status" class="status"></div>
       <div id="transcript" class="transcript" tabindex="0"></div>
@@ -32,8 +52,12 @@
     <section id="tab-prepare" class="tab-body" hidden>
       <div id="prep-start" class="prep-start">
         <p>Go through the hard sentences <b>before</b> you watch. Words you add wait in the Cards tab for a final check; words you skip teach Translate Tube what you already know.</p>
+        <div id="prep-transcript-status" class="status"></div>
         <label class="check"><input type="checkbox" id="prep-only-hard" checked> Only show sentences with hard words</label>
-        <button id="prep-begin" class="primary">Start</button>
+        <div class="row">
+          <button id="prep-begin" class="primary">Start</button>
+          <button id="prep-over" class="link" hidden>Start over from the beginning</button>
+        </div>
         <div class="keys">
           <div><kbd>Space</kbd> show translation</div>
           <div><kbd>Tab</kbd> next highlighted word</div>
@@ -78,14 +102,17 @@
         <details class="menu">
           <summary class="icon" title="More">⋯</summary>
           <div class="menu-body">
+            <button id="export-drafts" class="link">Export cards to review</button>
             <button id="export-waiting" class="link">Export cards waiting for Anki</button>
             <button id="export-all" class="link">Export all sent cards</button>
+            <p class="muted small how">To import a file: in Anki choose <b>File → Import</b> and pick it. Columns and deck are set automatically. If Anki was never connected, pick the <b>Basic</b> note type when asked.</p>
           </div>
         </details>
       </div>
       <p id="review-hint" class="muted small pad"></p>
       <div id="drafts"></div>
       <div id="send-bar" class="send-bar" hidden>
+        <div id="anki-off" class="anki-off" hidden></div>
         <button id="send-cards" class="primary"></button>
       </div>
       <section id="waiting-box" hidden>

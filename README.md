@@ -4,7 +4,7 @@ Learn a language from the YouTube videos you already watch.
 
 Translate Tube is a free, open-source Chrome / Edge extension. It opens a side panel next to the video (never on top of it) with:
 
-- **Transcript** – the subtitles as a scrolling text. The sentence being spoken is highlighted, with the lines before and after it. The whole transcript is analysed once when a video opens, so words that are hard for your level are underlined right away, and you can turn on a translation line under each sentence. Click an underlined word for its meaning at once; click any other word (or drag over a phrase) to get a translation **in this context**. Idioms and phrasal verbs are treated as one unit, with each word explained too.
+- **Transcript** – the subtitles as a scrolling text. The sentence being spoken is highlighted, with the lines before and after it. The whole transcript is analysed once when a video opens, so words that are hard for your level are underlined right away, and you can show a translation under the current line or under every line. Works for regular videos and Shorts (if they have subtitles). Click an underlined word for its meaning at once; click any other word (or drag over a phrase) to get a translation **in this context**. Idioms and phrasal verbs are treated as one unit, with each word explained too.
 - **Prepare** – go through the video's hard sentences *before* watching. The keyboard does the rest:
 
   | Key | Action |
@@ -12,13 +12,14 @@ Translate Tube is a free, open-source Chrome / Edge extension. It opens a side p
   | <kbd>Space</kbd> | show / hide the sentence translation |
   | <kbd>Tab</kbd> | next highlighted word in this sentence |
   | <kbd>A</kbd> | add the word to your cards |
-  | <kbd>S</kbd> | I know it (never highlighted again) |
+  | <kbd>S</kbd> | I know it (never highlighted again; the ↶ button at the top undoes the last ones, one by one) |
   | <kbd>Enter</kbd> | next highlighted word, then the next sentence |
   | <kbd>Backspace</kbd> | back to the previous sentence |
   | <kbd>−</kbd> / <kbd>+</kbd> | fewer / more highlighted words (changes your level at once) |
   | <kbd>P</kbd> | play this sentence in the video |
   | click | look up any other word |
 
+- **Recent videos** – the 🕘 button lists videos you opened with the panel; click one to continue where you stopped.
 - **Cards** – words you add wait in a review list, grouped by video and kept until you send them. Fix a word or translation, tick single words of a phrase to get a card for each, then send everything to [Anki](https://apps.ankiweb.net). Each card has the word in dictionary form, its translation, a memory note, the original sentence and a link back to the exact moment in the video. If Anki is closed, cards wait in the extension and are sent automatically later.
 
 There is no server: everything runs in your browser, with your own AI key.
@@ -32,10 +33,11 @@ Pick one in Settings, paste a key, press **Test**. The model is chosen automatic
 | Google Gemini | free tier | Recommended. Key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 | Anthropic Claude | paid API | Key from [console.anthropic.com](https://console.anthropic.com/settings/keys) |
 | OpenAI | paid API | Key from [platform.openai.com](https://platform.openai.com/api-keys) |
-| DeepL | free tier | Translation only: no memory notes, no hard-word highlighting |
 | Ollama | free, local | Runs on your computer. Start Ollama with `OLLAMA_ORIGINS=chrome-extension://*` |
 
 Keys are stored only in `chrome.storage.local` on your computer and are sent only to the provider you chose.
+
+Optionally add a **Backup AI** in Settings. It answers while the main one is out of its free limit or not responding; the main one is used again once it recovers.
 
 ## Install
 
@@ -46,7 +48,7 @@ Short version:
 1. Download `translate-tube-x.y.z.zip` from [Releases](../../releases) and unzip it.
 2. Open `chrome://extensions` (or `edge://extensions`), turn on **Developer mode**, click **Load unpacked**, choose the unzipped folder.
 3. The setup page opens: pick your languages, AI provider and level.
-4. Install Anki desktop + the AnkiConnect add-on (code `2055492159`), then click **Connect to Anki** in Settings.
+4. On the last setup step choose **Yes, use Anki** and follow the steps (Anki desktop + the AnkiConnect add-on, code `2055492159`).
 5. Open a YouTube video and click the Translate Tube toolbar button (or <kbd>Alt</kbd>+<kbd>T</kbd>).
 
 ## Development

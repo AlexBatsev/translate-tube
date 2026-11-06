@@ -12,7 +12,6 @@ export default {
   blurb: 'Free. Runs a model on your own computer.',
   keyUrl: 'https://ollama.com/download',
   fields: ['host'],
-  canExplain: true,
   autoModels: [/llama/, /qwen/, /gemma/, /mistral/],
 
   async listModels(cfg) {
@@ -20,11 +19,12 @@ export default {
     return (data.models ?? []).map((m) => m.name).filter((n) => !/(embed|bge|minilm)/i.test(n));
   },
 
-  async complete(cfg, { system, prompt, json, timeoutMs }) {
+  async complete(cfg, { system, prompt, json, timeoutMs, signal }) {
     const data = await requestJson(`${host(cfg)}/api/chat`, {
       method: 'POST',
       // Local models can be slow to load the first time.
       timeoutMs: Math.max(timeoutMs ?? 0, 120000),
+      signal,
       body: {
         model: cfg.model,
         stream: false,

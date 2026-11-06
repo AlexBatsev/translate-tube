@@ -70,6 +70,30 @@ export function failureReason(e) {
   return e.message;
 }
 
+// What kind of failure, so the panel can say what to do:
+// 'key' (missing or rejected key), 'limit' (rate/quota), 'busy' (no model
+// answered for another reason), or '' (anything else).
+export function errorKind(e) {
+  if (e?.kind) return e.kind;
+  if (e?.status === 401 || e?.status === 403) return 'key';
+  if (e?.status === 400 && /api key|api_key|invalid key|key not valid|authentication|permission/i.test(e.message ?? '')) return 'key';
+  if (e?.status === 429) return 'limit';
+  return '';
+}
+
+export class AiError extends Error {
+  constructor(message, kind) {
+    super(message);
+    this.kind = kind;
+  }
+}
+
+export function needsKey(settings) {
+  const provider = getProvider(settings.provider);
+  const cfg = settings.providers[provider.id] ?? {};
+  return provider.fields.includes('apiKey') && !cfg.apiKey;
+}
+
 async function updateProviderCfg(providerId, patch) {
   const s = await getSettings();
   await saveSettings({ providers: { [providerId]: { ...s.providers[providerId], ...patch } } });
@@ -90,9 +114,46 @@ export async function loadModels(settings) {
   return models;
 }
 
-async function run(settings, req, { maxTries = 4, onAttempt } = {}) {
+// Main AI first. If it is out of limits or not answering, the optional backup
+// AI takes over, and the main one is tried again after a pause.
+const mainPausedUntil = {};
+const MAIN_PAUSE = { limit: 5 * 60000, busy: 60000 };
+
+export function backupSettings(settings) {
+  const b = settings.backupProvider;
+  if (!b || b === settings.provider) return null;
+  const s = { ...settings, provider: b };
+  return needsKey(s) ? null : s;
+}
+
+async function run(settings, req, opts = {}) {
+  const backup = backupSettings(settings);
+  if (!backup) return runOne(settings, req, opts);
+  const main = settings.provider;
+  if (Date.now() < (mainPausedUntil[main] ?? 0)) {
+    try {
+      return await runOne(backup, req, opts);
+    } catch (e) {
+      if (!['limit', 'busy'].includes(errorKind(e))) throw e;
+      // Backup is stuck too: try the main one after all.
+    }
+  }
+  try {
+    const r = await runOne(settings, req, opts);
+    delete mainPausedUntil[main];
+    return r;
+  } catch (e) {
+    const kind = errorKind(e);
+    if (kind !== 'limit' && kind !== 'busy') throw e;
+    mainPausedUntil[main] = Date.now() + MAIN_PAUSE[kind];
+    return runOne(backup, req, opts);
+  }
+}
+
+async function runOne(settings, req, { maxTries = 4, onAttempt } = {}) {
   const provider = getProvider(settings.provider);
   const cfg = settings.providers[provider.id] ?? {};
+  if (needsKey(settings)) throw new AiError(`Add your ${provider.name} key in Settings.`, 'key');
   if (cfg.model) {
     onAttempt?.(cfg.model);
     try {
@@ -102,8 +163,9 @@ async function run(settings, req, { maxTries = 4, onAttempt } = {}) {
     } catch (e) {
       if (shouldTryNextModel(e)) {
         await markModel(provider.id, cfg.model, isRetired(e) ? 'retired' : 'fail');
-        throw new Error(`${cfg.model}: ${failureReason(e)}. Try again in a minute, or switch the model to Automatic in Settings.`);
+        throw new AiError(`${cfg.model}: ${failureReason(e)}. Try again in a minute, or switch the model to Automatic in Settings.`, e.status === 429 ? 'limit' : 'busy');
       }
+      if (errorKind(e) === 'key') throw new AiError(`${provider.name} rejected the key (${e.message}). Check it in Settings.`, 'key');
       throw e;
     }
   }
@@ -111,9 +173,10 @@ async function run(settings, req, { maxTries = 4, onAttempt } = {}) {
   if (!models?.length) models = await loadModels(settings);
   const status = cfg.modelStatus ?? {};
   const ranked = rankModels(provider, models).filter((m) => status[m] !== 'retired');
-  if (!ranked.length) throw new Error('No usable models found for this key.');
+  if (!ranked.length) throw new AiError('No usable models found for this key. Check it in Settings.', 'key');
   const order = ranked.includes(cfg.autoModel) ? [cfg.autoModel, ...ranked.filter((m) => m !== cfg.autoModel)] : ranked;
   const tried = [];
+  let limited = 0;
   for (const model of order.slice(0, maxTries)) {
     onAttempt?.(model);
     try {
@@ -122,12 +185,20 @@ async function run(settings, req, { maxTries = 4, onAttempt } = {}) {
       await markModel(provider.id, model, 'ok');
       return { text, model };
     } catch (e) {
-      if (!shouldTryNextModel(e)) throw e;
+      if (!shouldTryNextModel(e)) {
+        if (errorKind(e) === 'key') throw new AiError(`${provider.name} rejected the key (${e.message}). Check it in Settings.`, 'key');
+        throw e;
+      }
+      if (e.status === 429) limited++;
       await markModel(provider.id, model, isRetired(e) ? 'retired' : 'fail');
       tried.push(`${model} ${failureReason(e)}`);
     }
   }
-  throw new Error(`No model answered (${tried.join(', ')}). Try again in a minute.`);
+  const kind = limited && limited === tried.length ? 'limit' : 'busy';
+  throw new AiError(
+    kind === 'limit' ? `The free limit of your ${provider.name} key is used up for now (${tried.join(', ')}).` : `No model answered (${tried.join(', ')}). Try again in a minute.`,
+    kind
+  );
 }
 
 // ---- prompts ----
@@ -185,16 +256,6 @@ export function normalizeItem(raw, sentence) {
 }
 
 export async function explainTerm(settings, { term, sentence, previous }) {
-  const provider = getProvider(settings.provider);
-  const cfg = settings.providers[provider.id] ?? {};
-  if (!provider.canExplain) {
-    const [translation, sentenceTranslation] = await provider.translate(cfg, [term, sentence], {
-      from: settings.learningLang,
-      to: settings.nativeLang,
-      context: sentence
-    });
-    return { item: { text: term, lemma: term, kind: 'word', level: 3, translation, note: '', inTranslation: '', parts: [] }, sentenceTranslation };
-  }
   const req = { system: system(settings), prompt: buildExplainPrompt({ term, sentence, previous }), json: true, timeoutMs: TIMEOUT.explain };
   let out;
   try {
@@ -221,45 +282,35 @@ export function buildAnalyzePrompt(sentences) {
   ].join('\n');
 }
 
-// Analyses a batch of sentences. Throws BadAnswerError for garbled JSON so
-// the caller can retry or split the batch.
-export async function analyzeSentences(settings, sentences) {
-  const provider = getProvider(settings.provider);
-  const cfg = settings.providers[provider.id] ?? {};
-  if (!provider.canExplain) {
-    const translations = await provider.translate(cfg, sentences.map((s) => s.text), {
-      from: settings.learningLang,
-      to: settings.nativeLang
-    });
-    return sentences.map((s, i) => ({ id: s.id, translation: translations[i], items: [] }));
-  }
-  const { text } = await run(settings, {
+// Analyses a batch of sentences. Returns { results, model }; lines the AI
+// left out come back as { id, missing: true }. Throws BadAnswerError for
+// garbled JSON so the caller can retry or split the batch.
+export async function analyzeSentences(settings, sentences, { signal } = {}) {
+  const { text, model } = await run(settings, {
     system: system(settings),
     prompt: buildAnalyzePrompt(sentences),
     json: true,
-    timeoutMs: TIMEOUT.analyze
+    timeoutMs: TIMEOUT.analyze,
+    signal
   }, { maxTries: 3 });
   const out = parseJsonStrict(text);
   const byId = new Map((out.sentences ?? []).map((s) => [Number(s.id), s]));
-  return sentences.map((s) => {
-    const r = byId.get(s.id) ?? {};
+  const results = sentences.map((s) => {
+    const r = byId.get(s.id);
+    if (!r) return { id: s.id, missing: true };
     return {
       id: s.id,
       translation: String(r.translation ?? ''),
       items: (r.items ?? r.hard ?? []).map((h) => normalizeItem(h, s.text)).filter(Boolean)
     };
   });
+  return { results, model };
 }
 
 // Returns { message, model } or throws. onAttempt(model) reports progress.
 export async function testProvider(settings, onAttempt) {
-  const provider = getProvider(settings.provider);
-  const cfg = settings.providers[provider.id] ?? {};
-  if (!provider.canExplain) {
-    const [t] = await provider.translate(cfg, ['Hello, world!'], { from: 'en', to: settings.nativeLang });
-    return { message: `Works: "Hello, world!" = ${t}`, model: '' };
-  }
-  const { text, model } = await run(
+  // Always the provider in `settings`, never the backup, so the result is honest.
+  const { text, model } = await runOne(
     settings,
     {
       system: system(settings),

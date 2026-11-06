@@ -1,5 +1,5 @@
 // Languages offered in the settings. `code` is an ISO 639-1 code, which is
-// also what YouTube uses for caption tracks and what DeepL accepts.
+// also what YouTube uses for caption tracks .
 export const LANGUAGES = [
   ['ar', 'Arabic'], ['bg', 'Bulgarian'], ['cs', 'Czech'], ['da', 'Danish'],
   ['de', 'German'], ['el', 'Greek'], ['en', 'English'], ['es', 'Spanish'],

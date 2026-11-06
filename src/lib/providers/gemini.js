@@ -16,7 +16,6 @@ export default {
   blurb: 'Free tier available. Recommended.',
   keyUrl: 'https://aistudio.google.com/apikey',
   fields: ['apiKey'],
-  canExplain: true,
   // Automatic mode prefers these (newest first), then any other text model.
   autoModels: [/^gemini-[\d.]+-flash$/, /^gemini-[\d.]+-flash-lite$/],
 
@@ -28,11 +27,12 @@ export default {
       .filter((n) => n.startsWith('gemini') && !NOT_TEXT.test(n));
   },
 
-  async complete(cfg, { system, prompt, json, timeoutMs }) {
+  async complete(cfg, { system, prompt, json, timeoutMs, signal }) {
     const call = (thinking) =>
       requestJson(`${BASE}/models/${encodeURIComponent(cfg.model)}:generateContent`, {
         method: 'POST',
         timeoutMs,
+        signal,
         headers: { 'x-goog-api-key': cfg.apiKey },
         body: {
           systemInstruction: { parts: [{ text: system }] },

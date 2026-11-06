@@ -74,7 +74,8 @@ main { flex: 1; min-height: 0; position: relative; }
 .card-list li { border-bottom: 1px solid var(--line); padding: 6px 0; font-size: 14px; }
 .card-list li .err { color: var(--accent); font-size: 12px; display: block; }
 .card-list li .muted { color: var(--muted); }
-.toast { position: fixed; top: 48px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); border-radius: 8px; padding: 6px 12px; font-size: 13px; z-index: 20; max-width: 90%; }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); border-radius: 8px; padding: 8px 12px; font-size: 13px; z-index: 20; max-width: 90%; display: flex; gap: 10px; align-items: center; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.toast button { background: none; border: 0; color: inherit; text-decoration: underline; font-weight: 600; padding: 0; }
 [hidden] { display: none !important; }
 
 /* ---- round 2 ---- */
@@ -118,3 +119,26 @@ button.mini { padding: 0 7px; font-size: 13px; line-height: 18px; }
 .draft details summary { font-size: 12px; color: var(--muted); cursor: pointer; }
 .send-bar { position: sticky; bottom: 0; background: var(--bg); padding: 8px 12px; border-top: 1px solid var(--line); }
 .send-bar button { width: 100%; }
+
+/* round 3 */
+.top-actions { display: flex; gap: 2px; align-items: center; }
+.icon.undo { font-size: 13px; color: var(--muted); }
+.recent { position: absolute; top: 40px; left: 8px; right: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.2); padding: 8px 10px; z-index: 15; max-height: 70vh; overflow: auto; }
+.recent-head { display: flex; justify-content: space-between; align-items: center; }
+.recent-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.recent-list li { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.recent-list li:last-child { border-bottom: 0; }
+.recent-list a { color: var(--fg); text-decoration: none; cursor: pointer; }
+.recent-list a:hover { text-decoration: underline; }
+.recent-list .muted { display: block; font-size: 12px; }
+.status .recent-list { margin-top: 8px; }
+.legend { margin: 6px 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; display: grid; gap: 4px; }
+.bar select { font: inherit; font-size: 12px; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 4px; }
+.prep-start .row { display: flex; gap: 12px; align-items: center; }
+.anki-off { font-size: 13px; margin-bottom: 6px; }
+.menu-body .how { max-width: 260px; white-space: normal; margin: 4px 0 0; }
+.draft-head .d-del { flex: none; }
+.card-list .q-del { float: right; }
+.dup { font-size: 12px; color: var(--muted); }
+.empty-hint { margin-top: 8px; }
+.transcript.tr-current .line:not(.active) .tr { display: none; }

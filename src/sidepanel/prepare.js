@@ -1,11 +1,10 @@
 // Prepare tab: go through the hard sentences before watching.
 import { $, state, on, emit, fmtTime, toTab, escapeHtml, sentenceHtml, highlightPhrases, itemHtml } from './core.js';
 import { explainTerm } from '../lib/ai.js';
-import { addWords, saveSettings, LEVELS } from '../lib/storage.js';
+import { saveSettings, LEVELS } from '../lib/storage.js';
 import { visibleItems } from '../lib/analysis.js';
-import { getProvider } from '../lib/providers/index.js';
 import { getDrafts } from '../lib/drafts.js';
-import { addItemAsDraft } from './transcript-view.js';
+import { addItemAsDraft, knowWords, analysisText } from './transcript-view.js';
 
 const prep = {
   started: false,
@@ -15,14 +14,25 @@ const prep = {
   onlyHard: true,
   extra: [], // items looked up by clicking other words in this sentence
   added: new Set(), // "id|text" of items added to cards
-  history: [] // sentences shown before, for Back
+  history: [], // sentences shown before, for Back
+  shown: 0, // sentences shown since Start (0 at the end = nothing was hard)
+  loading: -1 // sentence id we are waiting for
 };
 
 export function resetPrep() {
-  Object.assign(prep, { started: false, idx: 0, wordIdx: 0, extra: [], added: new Set(), history: [] });
+  Object.assign(prep, { started: false, idx: 0, wordIdx: 0, extra: [], added: new Set(), history: [], shown: 0, loading: -1 });
   $('prep-start').hidden = false;
   $('prep-card').hidden = true;
   setStatus('');
+  updateStartScreen();
+}
+
+// "Continue from sentence N" when this video was prepared part of the way before.
+export async function updateStartScreen() {
+  const saved = state.videoId ? ((await chrome.storage.local.get(posKey()))[posKey()] ?? 0) : 0;
+  const resume = saved > 0 && saved < state.sentences.length;
+  $('prep-begin').textContent = resume ? `Continue from sentence ${saved + 1}` : 'Start';
+  $('prep-over').hidden = !resume;
 }
 
 export function prepActive() {
@@ -46,17 +56,18 @@ function addedSet(id = prep.idx) {
   return new Set([...prep.added].filter((k) => k.startsWith(`${id}|`)).map((k) => k.slice(String(id).length + 1)));
 }
 
-$('prep-begin').addEventListener('click', startPrep);
+$('prep-begin').addEventListener('click', () => startPrep(false));
+$('prep-over').addEventListener('click', () => startPrep(true));
 
-async function startPrep() {
+async function startPrep(fromStart) {
   if (!state.sentences.length || !state.analysis) {
-    setStatus('Wait for the transcript to load first.');
+    setStatus(state.videoId ? 'The transcript is not ready yet (see above).' : 'Open a YouTube video first.');
     return;
   }
-  const provider = getProvider(state.settings.provider);
-  prep.onlyHard = $('prep-only-hard').checked && provider.canExplain;
-  setStatus(provider.canExplain ? '' : `${provider.name} cannot pick hard words, so every sentence is shown.`);
-  const saved = (await chrome.storage.local.get(posKey()))[posKey()] ?? 0;
+  prep.onlyHard = $('prep-only-hard').checked;
+  prep.shown = 0;
+  setStatus('');
+  const saved = fromStart ? 0 : ((await chrome.storage.local.get(posKey()))[posKey()] ?? 0);
   prep.idx = saved < state.sentences.length ? saved : 0;
   prep.started = true;
   $('prep-start').hidden = true;
@@ -72,8 +83,11 @@ async function gotoSentence(idx, dir, { record = true } = {}) {
   idx = Math.max(0, Math.min(idx, n - 1));
   for (;;) {
     if (!state.analysis.results.has(idx)) {
+      prep.loading = idx;
       renderLoading(idx);
       await state.analysis.ensure(idx);
+      prep.loading = -1;
+      if (!prep.started) return;
       if (!state.analysis.results.has(idx)) return renderFailed(idx, dir);
     }
     if (!prep.onlyHard || items(idx).length || (idx === 0 && dir < 0)) break;
@@ -89,6 +103,7 @@ async function gotoSentence(idx, dir, { record = true } = {}) {
   prep.wordIdx = 0;
   prep.showTranslation = false;
   prep.extra = [];
+  prep.shown++;
   setStatus('');
   chrome.storage.local.set({ [posKey()]: idx });
   render();
@@ -96,30 +111,44 @@ async function gotoSentence(idx, dir, { record = true } = {}) {
 
 function renderLoading(idx) {
   $('prep-pos').textContent = `Sentence ${idx + 1} of ${state.sentences.length}`;
-  $('prep-sentence').innerHTML = '<span class="spinner"></span>Analysing…';
+  $('prep-sentence').innerHTML = analysisText() || '<span class="spinner"></span>Analysing…';
   $('prep-prev').textContent = '';
   $('prep-word').innerHTML = '';
   $('prep-translation').hidden = true;
 }
 
 function renderFailed(idx, dir) {
-  const err = state.analysis.failed.get(idx) ?? 'Analysis failed.';
+  const a = state.analysis;
+  const err = a.error?.message ?? a.failed.get(idx) ?? 'Analysis failed.';
+  const settings = a.error?.kind === 'key' ? ' <button class="link" data-action="open-settings">Settings</button>' : '';
   $('prep-sentence').innerHTML = escapeHtml(state.sentences[idx].text);
-  $('prep-word').innerHTML = `<div class="status"><span class="err">${escapeHtml(err)}</span> <button id="prep-retry" class="link">Retry</button></div>`;
+  $('prep-word').innerHTML = `<div class="status"><span class="err">${escapeHtml(err)}</span>${settings} <button id="prep-retry" class="link">Retry</button></div>`;
   $('prep-retry').addEventListener('click', () => {
-    state.analysis.retryFailed();
+    a.retry();
     gotoSentence(idx, dir);
   });
 }
 
 async function renderDone() {
   prep.idx = state.sentences.length;
+  chrome.storage.local.remove(posKey()); // finished: next time starts from the beginning
   const drafts = (await getDrafts()).filter((d) => d.videoId === state.videoId);
   $('prep-pos').textContent = 'Done';
   $('prep-prev').textContent = '';
-  $('prep-sentence').innerHTML = 'You have prepared the whole video. Enjoy watching!';
+  const nothing = prep.onlyHard && prep.shown === 0;
+  $('prep-sentence').innerHTML = nothing
+    ? `No hard words in this video at your level (${escapeHtml(levelLabel())}).`
+    : 'You have prepared the whole video. Enjoy watching!';
   $('prep-translation').hidden = true;
-  $('prep-word').innerHTML = `${drafts.length ? `<button id="prep-review" class="primary">Review ${drafts.length} card${drafts.length > 1 ? 's' : ''} now</button> ` : ''}<button id="prep-restart" class="link">Start again from the beginning</button>`;
+  $('prep-word').innerHTML =
+    (nothing && Number(state.settings.level) > 1 ? '<button id="prep-more" class="primary">Show more words (+)</button> ' : '') +
+    `${drafts.length ? `<button id="prep-review" class="primary">Review ${drafts.length} card${drafts.length > 1 ? 's' : ''} now</button> ` : ''}<button id="prep-restart" class="link">Start again from the beginning</button>`;
+  $('prep-more')?.addEventListener('click', async () => {
+    await changeLevel(-1);
+    prep.history = [];
+    prep.shown = 0;
+    gotoSentence(0, 1, { record: false });
+  });
   $('prep-review')?.addEventListener('click', () => emit('show-tab', 'cards'));
   $('prep-restart').addEventListener('click', () => {
     prep.history = [];
@@ -270,7 +299,7 @@ function key(k, shift = false) {
       }
       return true;
     case 's':
-      if (cur) addWords('knownWords', [cur.lemma, cur.text]); // 'words' event re-renders
+      if (cur) knowWords([cur.lemma, cur.text], cur.lemma || cur.text); // 'words' event re-renders
       return true;
     case 'Enter':
       next();
@@ -296,6 +325,9 @@ function key(k, shift = false) {
 }
 
 on('analysis', () => {
-  if (prep.started && prep.idx < state.sentences.length) render();
+  if (!prep.started) return;
+  if (prep.loading >= 0) renderLoading(prep.loading);
+  else if (prep.idx < state.sentences.length) render();
 });
+on('transcript', updateStartScreen);
 on('tab-shown', (name) => name === 'prepare' && prep.started && $('prep-card').focus());

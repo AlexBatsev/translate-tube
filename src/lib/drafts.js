@@ -52,6 +52,13 @@ export async function removeDrafts(ids) {
   await setDrafts((await getDrafts()).filter((d) => !drop.has(d.id)));
 }
 
+// Puts removed drafts back (Undo).
+export async function restoreDrafts(list) {
+  const drafts = await getDrafts();
+  const ids = new Set(drafts.map((d) => d.id));
+  await setDrafts([...drafts, ...list.filter((d) => !ids.has(d.id))].sort((a, b) => a.addedAt - b.addedAt));
+}
+
 // One draft can become several cards: the whole phrase and/or ticked words.
 export function draftToCards(d) {
   const base = { sentence: d.sentence, sentenceTranslation: d.sentenceTranslation, videoId: d.videoId, videoTitle: d.videoTitle, ms: d.ms };

@@ -17,7 +17,6 @@ export default {
   blurb: 'Paid API.',
   keyUrl: 'https://console.anthropic.com/settings/keys',
   fields: ['apiKey'],
-  canExplain: true,
   autoModels: [/haiku/, /sonnet/],
 
   async listModels(cfg) {
@@ -25,10 +24,11 @@ export default {
     return (data.data ?? []).map((m) => m.id);
   },
 
-  async complete(cfg, { system, prompt, timeoutMs }) {
+  async complete(cfg, { system, prompt, timeoutMs, signal }) {
     const data = await requestJson(`${BASE}/messages`, {
       method: 'POST',
       timeoutMs,
+      signal,
       headers: headers(cfg),
       body: {
         model: cfg.model,

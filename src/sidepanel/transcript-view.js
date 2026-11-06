@@ -1,7 +1,7 @@
 // Transcript tab: scrolling subtitles, translation lines, lookups.
 import { $, state, on, emit, toast, fmtTime, toTab, playSentence, escapeHtml, sentenceHtml, highlightPhrases, itemHtml } from './core.js';
 import { explainTerm } from '../lib/ai.js';
-import { saveSettings, addWords } from '../lib/storage.js';
+import { saveSettings, markKnown, undoKnown } from '../lib/storage.js';
 import { visibleItems } from '../lib/analysis.js';
 import { sentenceAt } from '../lib/transcript.js';
 import { addDraft } from '../lib/drafts.js';
@@ -9,9 +9,13 @@ import { addDraft } from '../lib/drafts.js';
 let activeIdx = -1;
 let follow = true;
 let popoverItem = null; // { item, sentence } shown in the popover
+let pausedByUs = false; // we paused the video for a lookup; resume on close
 
+// The same status shows on the Transcript and Prepare tabs. Buttons inside
+// use data-action (handled in sidepanel.js), so the copy works in both places.
 export function setTranscriptStatus(html) {
   $('transcript-status').innerHTML = html;
+  $('prep-transcript-status').innerHTML = html;
 }
 
 function sentenceItems(id) {
@@ -24,23 +28,56 @@ function sentenceItems(id) {
 
 function lineHtml(s) {
   const { items, strong, translation } = sentenceItems(s.id);
-  const tr = state.settings.showSentenceTranslation && translation ? `<span class="tr">${escapeHtml(translation)}</span>` : '';
+  const tr = state.settings.showSentenceTranslation !== 'off' && translation ? `<span class="tr">${escapeHtml(translation)}</span>` : '';
   return `<span class="ts" data-ms="${s.start}">${fmtTime(s.start)}</span><span class="tx">${sentenceHtml(s.text, items, { strong, style: 'hl' })}${tr}</span>`;
 }
 
 export function renderTranscript() {
   $('transcript').innerHTML = state.sentences.map((s) => `<div class="line" data-id="${s.id}">${lineHtml(s)}</div>`).join('');
   activeIdx = -1;
+  applyTranslationMode();
   updateActive(true);
 }
 
-// Re-renders lines in place (after analysis progress, level or known-word changes).
-export function refreshLines() {
-  for (const el of $('transcript').children) {
-    const s = state.sentences[Number(el.dataset.id)];
-    if (s) el.innerHTML = lineHtml(s);
+function applyTranslationMode() {
+  $('transcript').classList.toggle('tr-current', state.settings.showSentenceTranslation === 'current');
+  $('show-tr').value = state.settings.showSentenceTranslation;
+}
+
+// Re-renders lines in place (after analysis progress, level or known-word
+// changes). ids: only these lines; nothing = all. While the user is dragging
+// a selection the repaint waits, so the selection is not lost.
+let selecting = false;
+let pendingIds = null; // Set of ids, or 'all'
+
+export function refreshLines(ids) {
+  if (selecting) {
+    if (!ids || pendingIds === 'all') pendingIds = 'all';
+    else pendingIds = new Set([...(pendingIds ?? []), ...ids]);
+    return;
+  }
+  const lines = $('transcript').children;
+  const list = ids ? [...ids] : [...lines].map((el) => Number(el.dataset.id));
+  for (const id of list) {
+    const el = lines[id];
+    const s = state.sentences[id];
+    if (el && s) el.innerHTML = lineHtml(s);
   }
 }
+
+$('transcript').addEventListener('mousedown', () => (selecting = true));
+document.addEventListener('mouseup', () => {
+  if (!selecting) return;
+  selecting = false;
+  if (!pendingIds) return;
+  const ids = pendingIds === 'all' ? undefined : pendingIds;
+  pendingIds = null;
+  // Let the selection handler read the selection first.
+  setTimeout(() => {
+    if (!String(window.getSelection() || '').trim()) refreshLines(ids);
+    else pendingIds = ids ?? 'all';
+  }, 0);
+});
 
 export function updateActive(force = false) {
   if (!state.sentences.length) return;
@@ -57,21 +94,33 @@ export function updateActive(force = false) {
   }
 }
 
+// Short text about the analysis: progress, a pause, or what went wrong.
+export function analysisText(a = state.analysis) {
+  if (!a) return '';
+  if (a.error?.kind === 'key') {
+    return `<span class="err">${escapeHtml(a.error.message)}</span> <button class="link" data-action="open-settings">Settings</button> <button class="link" data-action="retry-analysis">Retry</button>`;
+  }
+  if (a.error) {
+    const secs = Math.max(0, Math.ceil((a.error.until - Date.now()) / 1000));
+    const why = a.error.kind === 'limit' ? 'AI limit reached' : 'AI is busy';
+    return `<span class="err" title="${escapeHtml(a.error.message)}">${why}: continues in ${secs}s</span> <button class="link" data-action="retry-analysis">Now</button>`;
+  }
+  if (a.failed.size) {
+    const msg = [...a.failed.values()][0];
+    return `<span class="err" title="${escapeHtml(msg)}">${a.failed.size} lines not analysed: ${escapeHtml(msg)}</span> <button class="link" data-action="retry-analysis">Retry</button>`;
+  }
+  if (a.done < a.total) return `<span class="spinner"></span>Analysing ${a.done}/${a.total}`;
+  return '';
+}
+
 export function renderAnalysisState() {
   const a = state.analysis;
   const el = $('analysis-state');
-  if (!a) {
-    el.textContent = '';
-    return;
-  }
-  if (a.failed.size) {
-    el.innerHTML = `<span class="err">${a.failed.size} lines not analysed.</span> <button class="link" id="retry-analysis">Retry</button>`;
-    $('retry-analysis').addEventListener('click', () => a.retryFailed());
-  } else if (a.done < a.total) {
-    el.innerHTML = `<span class="spinner"></span>Analysing ${a.done}/${a.total}`;
-  } else {
-    el.textContent = '';
-  }
+  el.innerHTML = analysisText(a);
+  el.title = a && !el.innerHTML && a.model ? `Analysed by ${a.model}` : '';
+  // A paused analysis counts down every second.
+  clearTimeout(renderAnalysisState.timer);
+  if (a?.error?.until) renderAnalysisState.timer = setTimeout(renderAnalysisState, 1000);
 }
 
 // ---- scrolling ----
@@ -92,10 +141,14 @@ $('follow-now').addEventListener('click', () => {
   updateActive(true);
 });
 
-// ---- translation lines toggle ----
+// ---- translation lines and legend ----
 
 $('show-tr').addEventListener('change', async () => {
-  await saveSettings({ showSentenceTranslation: $('show-tr').checked });
+  await saveSettings({ showSentenceTranslation: $('show-tr').value });
+});
+$('legend-btn').addEventListener('click', () => {
+  $('legend').hidden = !$('legend').hidden;
+  $('legend-btn').setAttribute('aria-expanded', String(!$('legend').hidden));
 });
 
 // ---- clicks and selections ----
@@ -147,15 +200,22 @@ function showPopover(html) {
   $('popover').hidden = false;
 }
 
-export function hidePopover() {
+// resume: false when the popover closes because the video changed.
+export function hidePopover({ resume = true } = {}) {
+  const wasOpen = !$('popover').hidden;
   $('popover').hidden = true;
   popoverItem = null;
   window.getSelection()?.removeAllRanges();
+  if (wasOpen && resume && pausedByUs && state.settings?.resumeOnClose) toTab({ type: 'tt:play' });
+  pausedByUs = false;
 }
-$('popover-close').addEventListener('click', hidePopover);
+$('popover-close').addEventListener('click', () => hidePopover());
 
 function pauseIfNeeded() {
-  if (state.settings.pauseOnClick && !state.paused) toTab({ type: 'tt:pause' });
+  if (state.settings.pauseOnClick && !state.paused) {
+    toTab({ type: 'tt:pause' });
+    pausedByUs = true;
+  }
 }
 
 function showItem(item, id) {
@@ -179,7 +239,11 @@ async function lookup(term, ids) {
     renderPopover({ item: r.item, sentence, sentenceTranslation: r.sentenceTranslation, ms: sents[0].start, sentenceId: ids[0] });
   } catch (e) {
     if (token !== lookup.token) return;
-    showPopover(`<div class="term">${escapeHtml(term)}</div><div class="status"><span class="err">${escapeHtml(e.message)}</span></div>`);
+    const settingsLink = e.kind === 'key' ? ' <button class="link" data-action="open-settings">Settings</button>' : '';
+    showPopover(`<div class="term">${escapeHtml(term)}</div>
+      <div class="status"><span class="err">${escapeHtml(e.message)}</span></div>
+      <div class="row"><button id="pop-retry">Try again</button>${settingsLink}</div>`);
+    $('pop-retry').addEventListener('click', () => lookup(term, ids));
   }
 }
 
@@ -194,11 +258,26 @@ function renderPopover(p) {
       <button id="pop-known" class="link">I know this</button>
     </div>`);
   $('pop-add').addEventListener('click', () => addFromPopover());
-  $('pop-replay').addEventListener('click', () => playSentence({ start: p.ms }));
+  $('pop-replay').addEventListener('click', () => {
+    pausedByUs = false; // the user chose to play
+    playSentence({ start: p.ms });
+  });
   $('pop-known').addEventListener('click', async () => {
-    await addWords('knownWords', [p.item.lemma, p.item.text]);
-    toast('Marked as known');
+    await knowWords([p.item.lemma, p.item.text], p.item.lemma || p.item.text);
     hidePopover();
+  });
+}
+
+// "I know it" from anywhere: marks words known, with Undo in the toast.
+export async function knowWords(words, label) {
+  const added = await markKnown(words);
+  if (!added.length) return toast('Already marked as known');
+  toast(`“${label}” marked as known`, 4000, {
+    label: 'Undo',
+    run: async () => {
+      const back = await undoKnown();
+      if (back.length) toast(`“${back.join(', ')}” is a new word again`);
+    }
   });
 }
 
@@ -216,12 +295,10 @@ async function addFromPopover() {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (e.target.closest?.('input, textarea')) return;
+  if (e.target.closest?.('input, textarea, select')) return;
   if ($('popover').hidden || state.tab !== 'transcript') return;
   if (e.key === 'Escape') hidePopover();
   if ((e.key === 'a' || e.key === 'A') && popoverItem) addFromPopover();
 });
 
-on('settings', () => {
-  $('show-tr').checked = !!state.settings.showSentenceTranslation;
-});
+on('settings', applyTranslationMode);

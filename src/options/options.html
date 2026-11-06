@@ -16,6 +16,8 @@
       </div>
     </header>
 
+    <div id="setup-banner" class="panel banner" hidden>Setup is not finished yet. <a href="options.html#welcome" id="setup-link">Run the quick setup</a></div>
+
     <ol id="steps" class="steps" hidden>
       <li data-step="0">Languages</li><li data-step="1">AI</li><li data-step="2">Your level</li><li data-step="3">Anki</li>
     </ol>
@@ -26,6 +28,7 @@
         <label>I am learning<select id="learningLang"></select></label>
         <label>Translate into<select id="nativeLang"></select></label>
       </div>
+      <p id="lang-warn" class="status err" hidden>Pick two different languages.</p>
     </section>
 
     <section class="panel" data-step="1">
@@ -45,12 +48,35 @@
           <select id="model"></select>
         </label>
         <p id="model-hint" class="muted small">Automatic picks the newest fast model that answers and switches if one stops working.</p>
+        <label data-settings-only>Lines per request when analysing a video
+          <select id="batchSize">
+            <option value="5">5: first results sooner, more requests</option>
+            <option value="10">10 (recommended)</option>
+            <option value="20">20: fewer requests, slower first results</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel" data-settings-only>
+      <h2>Backup AI <span class="muted small">(optional)</span></h2>
+      <p class="muted">Used while your main AI is out of its free limit or not answering. The main AI is used again once it recovers.</p>
+      <label>Backup AI<select id="backup-provider"></select></label>
+      <div id="backup-config">
+        <label id="backup-key-field">API key <a id="backup-key-link" target="_blank" rel="noopener">Get a key</a>
+          <input id="backup-key" type="password" autocomplete="off" spellcheck="false">
+        </label>
+        <label id="backup-host-field">Ollama address<input id="backup-host" type="url" spellcheck="false"></label>
+        <div class="row">
+          <button id="backup-test">Test</button>
+          <span id="backup-status" class="status"></span>
+        </div>
       </div>
     </section>
 
     <section class="panel" data-step="2">
       <h2>Your level</h2>
-      <p class="muted">This decides which words Prepare highlights. It also learns from you: every word you skip with <kbd>S</kbd> is never highlighted again.</p>
+      <p class="muted">This decides which words are highlighted in the transcript and in Prepare. You can change it any time with <b>−</b> / <b>+</b> in Prepare. Words you mark with “I know this” or <kbd>S</kbd> are never highlighted again.</p>
       <div id="levels" class="levels"></div>
       <details id="self-check-box">
         <summary>Not sure? Take a 30-second check</summary>
@@ -64,32 +90,61 @@
       <div class="row">
         <button id="known-add">Add words</button>
         <label class="file">Upload file<input id="known-file" type="file" accept=".txt,.csv,.tsv,.md"></label>
-        <span id="known-count" class="muted"></span>
-        <button id="known-clear" class="link">Clear list</button>
       </div>
+      <details id="known-box">
+        <summary id="known-count" class="muted"></summary>
+        <div class="row">
+          <input id="known-filter" type="search" placeholder="Find a word" spellcheck="false">
+          <button id="known-clear" class="link">Clear the whole list</button>
+        </div>
+        <ul id="known-list" class="known-list"></ul>
+      </details>
     </section>
 
     <section class="panel" data-step="3">
-      <h2>Anki</h2>
-      <p class="muted">Cards go to Anki desktop through the free <a href="https://ankiweb.net/shared/info/2055492159" target="_blank" rel="noopener">AnkiConnect</a> add-on. If Anki is closed, cards wait here and are sent when it opens.</p>
-      <label>Deck<input id="deck" type="text"></label>
-      <details>
-        <summary>Advanced</summary>
-        <div class="grid2">
-          <label>AnkiConnect address<input id="ankiUrl" type="url" spellcheck="false"></label>
-          <label>AnkiConnect API key<input id="ankiKey" type="password" autocomplete="off"></label>
-        </div>
-      </details>
-      <div class="row">
-        <button id="anki-connect">Connect to Anki</button>
-        <span id="anki-status" class="status"></span>
+      <h2>Anki flashcards</h2>
+      <p class="muted">Translate Tube can turn the words you pick into flashcards in Anki, a free app that shows each card again right before you would forget it. It runs on Windows, Mac and Linux, and syncs to phone apps.</p>
+      <div class="choices" id="anki-use">
+        <label class="option"><input type="radio" name="anki-use" value="yes"><div><b>Yes, use Anki</b><span>Cards go straight into Anki on this computer.</span></div></label>
+        <label class="option"><input type="radio" name="anki-use" value="no"><div><b>Not now</b><span>Words are still collected in the Cards tab; you can export them, or connect Anki later in Settings.</span></div></label>
       </div>
-      <p class="muted small">Anki will ask "allow this extension?" the first time: click Yes.</p>
+      <div id="anki-setup" hidden>
+        <ol class="anki-steps">
+          <li data-as="1"><b>Install Anki</b> from <a href="https://apps.ankiweb.net" target="_blank" rel="noopener">apps.ankiweb.net</a> and open it.</li>
+          <li data-as="2"><b>Add the AnkiConnect add-on:</b> in Anki choose <b>Tools → Add-ons → Get Add-ons…</b>, paste the code <code>2055492159</code> <button id="copy-code" class="mini" type="button">Copy</button> and click OK.</li>
+          <li data-as="3"><b>Restart Anki:</b> close it completely and open it again. The add-on starts only after a restart.</li>
+          <li data-as="4"><b>Allow Translate Tube:</b> Anki asks once whether to allow this extension. Click <b>Yes</b>.</li>
+        </ol>
+        <p id="anki-live" class="status"></p>
+        <label>Deck<input id="deck" type="text"></label>
+        <details>
+          <summary>Advanced</summary>
+          <div class="grid2">
+            <label>AnkiConnect address<input id="ankiUrl" type="url" spellcheck="false"></label>
+            <label>AnkiConnect API key<input id="ankiKey" type="password" autocomplete="off"></label>
+          </div>
+        </details>
+        <div class="row">
+          <button id="anki-connect">Connect to Anki</button>
+          <span id="anki-status" class="status"></span>
+        </div>
+      </div>
     </section>
 
     <section class="panel" data-settings-only>
       <h2>While watching</h2>
       <label class="check"><input id="pauseOnClick" type="checkbox"> Pause the video when I click a word</label>
+      <label class="check"><input id="resumeOnClose" type="checkbox"> Play again when I close the translation</label>
+    </section>
+
+    <section class="panel" data-settings-only>
+      <h2>Save and restore your data</h2>
+      <p class="muted">Removing the extension deletes your settings, known words and the cards waiting for review. Download a file to bring them back later. It also contains your API keys, so keep it private.</p>
+      <div class="row">
+        <button id="data-save">Download my data</button>
+        <label class="file">Restore from file<input id="data-load" type="file" accept=".json,application/json"></label>
+        <span id="data-status" class="status"></span>
+      </div>
     </section>
 
     <footer>

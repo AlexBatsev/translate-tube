@@ -95,21 +95,23 @@ export function flushQueue(anki) {
 
 async function doFlush(anki) {
   let { ankiQueue } = await load();
-  if (!ankiQueue.length) return { sent: 0, left: 0 };
+  if (!ankiQueue.length) return { sent: 0, duplicates: 0, left: 0 };
   let sent = 0;
+  let duplicates = 0;
   let error = null;
   try {
     await ensureNoteTypeAndDeck(anki);
   } catch (e) {
-    return { sent: 0, left: ankiQueue.length, error: e.message, offline: e instanceof AnkiOffline };
+    return { sent: 0, duplicates: 0, left: ankiQueue.length, error: e.message, offline: e instanceof AnkiOffline };
   }
   for (const item of [...ankiQueue]) {
     try {
-      await addNote(anki, item.fields);
-      sent++;
+      const dup = (await addNote(anki, item.fields)) === 'duplicate';
+      if (dup) duplicates++;
+      else sent++;
       const state = await load();
       state.ankiQueue = state.ankiQueue.filter((q) => q.id !== item.id);
-      state.ankiSent = [...state.ankiSent, { ...item, sentAt: Date.now() }].slice(-1000);
+      state.ankiSent = [...state.ankiSent, { ...item, sentAt: Date.now(), duplicate: dup }].slice(-1000);
       await chrome.storage.local.set(state);
     } catch (e) {
       error = e;
@@ -121,5 +123,5 @@ async function doFlush(anki) {
     }
   }
   ({ ankiQueue } = await load());
-  return { sent, left: ankiQueue.length, error: error?.message, offline: error instanceof AnkiOffline };
+  return { sent, duplicates, left: ankiQueue.length, error: error?.message, offline: error instanceof AnkiOffline };
 }
