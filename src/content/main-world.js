@@ -29,13 +29,24 @@
     return origFetch.call(this, input, init);
   };
 
-  function playerResponse() {
-    const player = document.getElementById('movie_player');
-    try {
-      return player?.getPlayerResponse?.() ?? window.ytInitialPlayerResponse;
-    } catch {
-      return window.ytInitialPlayerResponse;
+  // The watch page and Shorts use different players; take the one that is
+  // playing the video in the address bar.
+  function playerResponse(videoId) {
+    const players = [document.getElementById('movie_player'), document.getElementById('shorts-player')];
+    let fallback = null;
+    for (const p of players) {
+      try {
+        const pr = p?.getPlayerResponse?.();
+        if (!pr) continue;
+        if (!videoId || pr.videoDetails?.videoId === videoId) return pr;
+        fallback ??= pr;
+      } catch {
+        /* player not ready */
+      }
     }
+    const initial = window.ytInitialPlayerResponse;
+    if (initial && (!videoId || initial.videoDetails?.videoId === videoId)) return initial;
+    return fallback ?? initial;
   }
 
   window.addEventListener('message', (ev) => {
@@ -43,7 +54,7 @@
     const { id, type } = ev.data;
     let payload = null;
     if (type === 'tracks') {
-      const pr = playerResponse();
+      const pr = playerResponse(ev.data.videoId);
       payload = {
         videoId: pr?.videoDetails?.videoId ?? null,
         title: pr?.videoDetails?.title ?? document.title,

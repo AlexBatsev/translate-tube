@@ -1,31 +1,29 @@
 import { requestJson, ProviderError } from './http.js';
 
 const BASE = 'https://api.openai.com/v1';
+const NOT_TEXT = /(audio|realtime|transcribe|tts|image|search|embedding|moderation|dall-e|whisper|codex)/;
 
 export default {
   id: 'openai',
   name: 'OpenAI',
-  blurb: 'Paid API. Get a key at platform.openai.com/api-keys.',
+  blurb: 'Paid API.',
   keyUrl: 'https://platform.openai.com/api-keys',
   fields: ['apiKey'],
-  canExplain: true,
-  preferredModels: [/^gpt-[\d.]+-mini$/, /mini/],
-  defaultModel: 'gpt-4.1-mini',
+  autoModels: [/^gpt-[\d.]+-mini$/, /^gpt-[\d.]+$/],
 
   async listModels(cfg) {
-    const data = await requestJson(`${BASE}/models`, { headers: { authorization: `Bearer ${cfg.apiKey}` } });
-    return (data.data ?? [])
-      .map((m) => m.id)
-      .filter((id) => /^(gpt|o\d|chatgpt)/.test(id) && !/(audio|realtime|transcribe|tts|image|search)/.test(id))
-      .sort();
+    const data = await requestJson(`${BASE}/models`, { headers: { authorization: `Bearer ${cfg.apiKey}` }, timeoutMs: 20000 });
+    return (data.data ?? []).map((m) => m.id).filter((id) => /^(gpt|o\d|chatgpt)/.test(id) && !NOT_TEXT.test(id));
   },
 
-  async complete(cfg, { system, prompt, json }) {
+  async complete(cfg, { system, prompt, json, timeoutMs, signal }) {
     const data = await requestJson(`${BASE}/chat/completions`, {
       method: 'POST',
+      timeoutMs,
+      signal,
       headers: { authorization: `Bearer ${cfg.apiKey}` },
       body: {
-        model: cfg.model || this.defaultModel,
+        model: cfg.model,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: prompt }

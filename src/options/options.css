@@ -44,3 +44,20 @@ summary { cursor: pointer; color: var(--accent); }
 .steps li.on { color: var(--fg); font-weight: 600; }
 footer { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; padding: 12px 0; background: var(--bg); }
 [hidden] { display: none !important; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.banner { border-color: var(--accent); }
+.choices { display: grid; gap: 6px; margin: 8px 0; }
+.anki-steps { padding-left: 22px; margin: 10px 0; }
+.anki-steps li { margin: 6px 0; }
+.anki-steps li.done { color: var(--muted); }
+.anki-steps li.done::marker { content: "✓  "; color: var(--ok); }
+code { font: 13px ui-monospace, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+button.mini { padding: 1px 8px; font-size: 13px; }
+input[type=search] { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; flex: 1; min-width: 160px; }
+.known-list { list-style: none; padding: 0; margin: 6px 0; display: flex; flex-wrap: wrap; gap: 6px; max-height: 260px; overflow: auto; }
+.known-list li { border: 1px solid var(--line); border-radius: 14px; padding: 1px 4px 1px 10px; font-size: 14px; display: inline-flex; align-items: center; gap: 2px; }
+.known-list li button { border: 0; background: none; padding: 0 6px; color: var(--muted); }
+.known-list .more { border: 0; color: var(--muted); }
+a.button { display: inline-block; text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 14px; }
+a.button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+label.check { display: flex; margin: 6px 0; }
