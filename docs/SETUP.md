@@ -33,14 +33,15 @@ The extension creates a deck (default "Translate Tube") and a note type called "
 
 To study on your phone, create a free [AnkiWeb](https://ankiweb.net) account, press **Sync** in Anki desktop, and use AnkiDroid (Android) or AnkiMobile (iPhone) with the same account.
 
-When Anki is closed, new cards wait in the extension (the toolbar icon shows how many). They are sent within a minute after you open Anki. You can also export them from the **Cards** tab and import the file in Anki with **File → Import**.
+When Anki is closed, sent cards wait in the extension and go to Anki within a minute after you open it. The toolbar icon shows how many cards are waiting for review or for Anki. You can also export them (the **⋯** menu on the **Cards** tab) and import the file in Anki with **File → Import**.
 
 ## 4. Use it
 
 1. Open any YouTube video that has subtitles (auto-generated ones work too).
 2. Click the Translate Tube icon or press <kbd>Alt</kbd>+<kbd>T</kbd>. The side panel opens next to the video.
-3. **Transcript** tab: click a word or drag over a phrase to translate it, then **Add to Anki**.
-4. **Prepare** tab: press **Start** and use the keyboard to go through the hard sentences before watching.
+3. **Transcript** tab: click a word or drag over a phrase to translate it, then **Add to cards**.
+4. **Prepare** tab: press **Start** and use the keyboard to go through the hard sentences before watching. Use **−** / **+** if too many or too few words are highlighted.
+5. **Cards** tab: check the words you added, then press **Send to Anki**.
 
 ## Troubleshooting
 

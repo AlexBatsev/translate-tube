@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseJsonLoose, buildAnalyzePrompt, shouldTryNextModel } from '../src/lib/ai.js';
+import { parseJsonLoose, buildAnalyzePrompt, shouldTryNextModel, isRetired, failureReason, normalizeItem, parseJsonStrict, BadAnswerError } from '../src/lib/ai.js';
 import { rankModels, versionKey, PROVIDERS } from '../src/lib/providers/index.js';
 import { ProviderError } from '../src/lib/providers/http.js';
 import { levelFromCheck, parseWordList, SELF_CHECK } from '../src/lib/level.js';
@@ -12,10 +12,35 @@ test('parseJsonLoose handles code fences and chatter', () => {
   assert.throws(() => parseJsonLoose('nope'));
 });
 
-test('analyze prompt lists sentences with ids and known words', () => {
-  const p = buildAnalyzePrompt([{ id: 4, text: 'Hi there' }], { known: ['hi'] });
+test('analyze prompt lists sentences with ids and asks for levels and kinds', () => {
+  const p = buildAnalyzePrompt([{ id: 4, text: 'Hi there' }]);
   assert.match(p, /4: Hi there/);
-  assert.match(p, /never list them\): hi/);
+  assert.match(p, /"level": difficulty 1-6/);
+  assert.match(p, /phrasal verb/);
+});
+
+test('parseJsonStrict throws BadAnswerError on garbage', () => {
+  assert.throws(() => parseJsonStrict('{"a": "b"c"}'), BadAnswerError);
+});
+
+test('normalizeItem clamps level, keeps parts for phrases only, drops items not in the sentence', () => {
+  const s = 'He blew it at the nook and cranny.';
+  const a = normalizeItem({ text: 'blew it', lemma: 'blow it', level: 9, kind: 'Idiom', parts: [{ text: 'blow', translation: 'дути' }, { text: 'x' }] }, s);
+  assert.equal(a.level, 6);
+  assert.equal(a.kind, 'idiom');
+  assert.deepEqual(a.parts, [{ text: 'blow', translation: 'дути' }]);
+  assert.deepEqual(normalizeItem({ text: 'nook', parts: [{ text: 'nook', translation: 'куток' }] }, s).parts, []);
+  assert.equal(normalizeItem({ text: 'banana' }, s), null);
+  assert.equal(normalizeItem({ text: 'nook and cranny' }, s).kind, 'fixed phrase');
+});
+
+test('retired models are recognised and reasons are short', () => {
+  const gone = new ProviderError('404: models/gemini-2.5-flash is no longer available', 404);
+  assert.equal(isRetired(gone), true);
+  assert.equal(failureReason(gone), 'retired');
+  assert.equal(failureReason(new ProviderError('503: high demand', 503)), 'busy');
+  assert.equal(failureReason(new ProviderError('x', 0, { timeout: true })), 'no answer');
+  assert.equal(isRetired(new ProviderError('503: high demand', 503)), false);
 });
 
 test('versionKey ignores dates and sizes', () => {

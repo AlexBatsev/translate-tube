@@ -41,24 +41,32 @@ async function flush() {
   return result;
 }
 
+// Badge = cards to review + cards waiting for Anki.
 async function updateBadge() {
-  const { ankiQueue = [] } = await chrome.storage.local.get('ankiQueue');
-  await chrome.action.setBadgeBackgroundColor({ color: '#b45309' });
-  await chrome.action.setBadgeText({ text: ankiQueue.length ? String(ankiQueue.length) : '' });
+  const { ankiQueue = [], drafts = [] } = await chrome.storage.local.get(['ankiQueue', 'drafts']);
+  const n = ankiQueue.length + drafts.length;
+  await chrome.action.setBadgeBackgroundColor({ color: drafts.length ? '#2563eb' : '#b45309' });
+  await chrome.action.setBadgeText({ text: n ? String(n) : '' });
 }
 
-async function addCard(data) {
-  // Card front shows the dictionary form; the sentence keeps the form used in the video.
-  const fields = buildCard({ ...data, term: data.lemma || data.term, surface: data.term });
-  await enqueue({ fields, term: data.lemma || data.term, translation: data.translation });
-  await addWords('deckWords', [normalizeWord(data.lemma || data.term)]);
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.drafts || changes.ankiQueue) updateBadge();
+});
+
+// cards: built by draftToCards(). The card front shows the dictionary form;
+// the sentence keeps the form used in the video.
+async function sendCards(cards) {
+  for (const c of cards) {
+    await enqueue({ fields: buildCard(c), term: c.term, translation: c.translation });
+  }
+  await addWords('deckWords', cards.map((c) => normalizeWord(c.lemma || c.term)));
   const result = await flush();
   return { ...result, queued: result.left > 0 };
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const handlers = {
-    'bg:addCard': () => addCard(msg.card),
+    'bg:sendCards': () => sendCards(msg.cards),
     'bg:flush': () => flush(),
     'bg:ankiCheck': () => checkConnection(msg.anki),
     'bg:injectTab': async () => {

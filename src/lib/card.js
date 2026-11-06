@@ -22,11 +22,21 @@ export function boldTerm(sentence, term) {
 
 // `term` is the dictionary form shown on the card front ("blow it");
 // `surface` is the form used in the video ("blew it"), bolded in the sentence.
-export function buildCard({ term, surface, translation, note, sentence, sentenceTranslation, videoId, videoTitle, ms }) {
+// For phrases, `kind` (idiom, phrasal verb…) and `parts` (each word with its
+// own translation) are added to the note.
+export function noteHtml({ note, kind, parts }) {
+  const lines = [];
+  if (kind && kind !== 'word') lines.push(`<i>${escapeHtml(kind)}</i>`);
+  if (note) lines.push(escapeHtml(note));
+  if (parts?.length) lines.push(parts.map((p) => `${escapeHtml(p.text)} — ${escapeHtml(p.translation)}`).join('<br>'));
+  return lines.join('<br>');
+}
+
+export function buildCard({ term, surface, translation, note, kind, parts, sentence, sentenceTranslation, videoId, videoTitle, ms }) {
   return {
     Word: escapeHtml(term),
     Translation: escapeHtml(translation),
-    Note: escapeHtml(note),
+    Note: noteHtml({ note, kind, parts }),
     Sentence: sentence ? boldTerm(sentence, surface || term) : '',
     SentenceTranslation: escapeHtml(sentenceTranslation),
     VideoTitle: escapeHtml(videoTitle || 'YouTube'),

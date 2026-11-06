@@ -21,7 +21,8 @@ export const DEFAULT_SETTINGS = {
     deck: 'Translate Tube',
     key: ''
   },
-  pauseOnClick: true
+  pauseOnClick: true,
+  showSentenceTranslation: false
 };
 
 export const LEVELS = [

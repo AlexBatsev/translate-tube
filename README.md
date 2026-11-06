@@ -4,20 +4,22 @@ Learn a language from the YouTube videos you already watch.
 
 Translate Tube is a free, open-source Chrome / Edge extension. It opens a side panel next to the video (never on top of it) with:
 
-- **Transcript** – the subtitles as a scrolling text. The sentence being spoken is highlighted, with the lines before and after it. Pause, click any word (or drag over a phrase) and get the translation **in this context**, idioms as one unit, plus a short memory note. One click sends it to Anki.
-- **Prepare** – go through the video's hard sentences *before* watching. Hard words for your level are highlighted; the keyboard does the rest:
+- **Transcript** – the subtitles as a scrolling text. The sentence being spoken is highlighted, with the lines before and after it. The whole transcript is analysed once when a video opens, so words that are hard for your level are underlined right away, and you can turn on a translation line under each sentence. Click an underlined word for its meaning at once; click any other word (or drag over a phrase) to get a translation **in this context**. Idioms and phrasal verbs are treated as one unit, with each word explained too.
+- **Prepare** – go through the video's hard sentences *before* watching. The keyboard does the rest:
 
   | Key | Action |
   | --- | --- |
   | <kbd>Space</kbd> | show / hide the sentence translation |
-  | <kbd>Tab</kbd> | next highlighted word (meaning + memory note) |
-  | <kbd>A</kbd> | add the word to Anki |
-  | <kbd>S</kbd> | skip – I know it (never highlighted again) |
-  | <kbd>Enter</kbd> / <kbd>Backspace</kbd> | next / previous sentence |
+  | <kbd>Tab</kbd> | next highlighted word in this sentence |
+  | <kbd>A</kbd> | add the word to your cards |
+  | <kbd>S</kbd> | I know it (never highlighted again) |
+  | <kbd>Enter</kbd> | next highlighted word, then the next sentence |
+  | <kbd>Backspace</kbd> | back to the previous sentence |
+  | <kbd>−</kbd> / <kbd>+</kbd> | fewer / more highlighted words (changes your level at once) |
   | <kbd>P</kbd> | play this sentence in the video |
   | click | look up any other word |
 
-- **Cards** – every word becomes an [Anki](https://apps.ankiweb.net) card with the word, translation, memory note, the original sentence and a link back to the exact moment in the video. If Anki is closed, cards wait in the extension and are sent automatically later. You can also export them as an Anki import file.
+- **Cards** – words you add wait in a review list, grouped by video and kept until you send them. Fix a word or translation, tick single words of a phrase to get a card for each, then send everything to [Anki](https://apps.ankiweb.net). Each card has the word in dictionary form, its translation, a memory note, the original sentence and a link back to the exact moment in the video. If Anki is closed, cards wait in the extension and are sent automatically later.
 
 There is no server: everything runs in your browser, with your own AI key.
 

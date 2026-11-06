@@ -61,7 +61,7 @@ function providerCfg() {
 function renderModels() {
   const p = getProvider(settings.provider);
   const cfg = providerCfg();
-  const mark = (m) => ({ ok: ' ✓', fail: ' ✗' })[cfg.modelStatus?.[m]] ?? '';
+  const mark = (m) => ({ ok: ' ✓', fail: ' ✗', retired: ' ✗ retired' })[cfg.modelStatus?.[m]] ?? '';
   const auto = `Automatic (recommended)${cfg.autoModel ? ` · now ${cfg.autoModel}` : ''}`;
   const models = cfg.models?.length ? rankModels(p, cfg.models) : [];
   if (cfg.model && !models.includes(cfg.model)) models.unshift(cfg.model);

@@ -11,14 +11,19 @@
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="transcript" aria-selected="true">Transcript</button>
       <button role="tab" data-tab="prepare">Prepare</button>
-      <button role="tab" data-tab="cards">Cards <span id="queue-count" class="pill" hidden></span></button>
+      <button role="tab" data-tab="cards">Cards <span id="cards-count" class="pill" hidden></span></button>
     </nav>
     <button id="open-settings" class="icon" title="Settings" aria-label="Settings">⚙</button>
   </header>
   <div id="video-title" class="video-title"></div>
+  <div id="reminder" class="reminder" hidden></div>
 
   <main>
     <section id="tab-transcript" class="tab-body">
+      <div class="bar">
+        <label class="check small"><input type="checkbox" id="show-tr"> Translation under each line</label>
+        <span id="analysis-state" class="muted small"></span>
+      </div>
       <div id="transcript-status" class="status"></div>
       <div id="transcript" class="transcript" tabindex="0"></div>
       <button id="follow-now" class="follow" hidden>↓ Back to now</button>
@@ -26,27 +31,37 @@
 
     <section id="tab-prepare" class="tab-body" hidden>
       <div id="prep-start" class="prep-start">
-        <p>Go through the hard sentences <b>before</b> you watch. The words you add go to Anki, and the ones you skip teach Translate Tube what you already know.</p>
+        <p>Go through the hard sentences <b>before</b> you watch. Words you add wait in the Cards tab for a final check; words you skip teach Translate Tube what you already know.</p>
         <label class="check"><input type="checkbox" id="prep-only-hard" checked> Only show sentences with hard words</label>
         <button id="prep-begin" class="primary">Start</button>
         <div class="keys">
           <div><kbd>Space</kbd> show translation</div>
           <div><kbd>Tab</kbd> next highlighted word</div>
-          <div><kbd>A</kbd> add word to Anki</div>
+          <div><kbd>A</kbd> add word to cards</div>
           <div><kbd>S</kbd> skip, I know it</div>
-          <div><kbd>Enter</kbd> next sentence</div>
-          <div><kbd>Backspace</kbd> previous sentence</div>
+          <div><kbd>Enter</kbd> next word, then next sentence</div>
+          <div><kbd>Backspace</kbd> back to previous sentence</div>
+          <div><kbd>−</kbd> / <kbd>+</kbd> fewer / more highlights</div>
           <div><kbd>P</kbd> play this sentence</div>
           <div>Click any other word to look it up</div>
         </div>
       </div>
       <div id="prep-card" class="prep-card" hidden tabindex="0">
-        <div class="prep-progress"><span id="prep-pos"></span><button id="prep-play" class="link">▶ play</button></div>
+        <div class="prep-progress">
+          <span id="prep-pos"></span>
+          <span class="level-ctl">
+            <button id="lvl-fewer" class="mini" title="Fewer highlights (−)">−</button>
+            <span id="lvl-label"></span>
+            <button id="lvl-more" class="mini" title="More highlights (+)">+</button>
+          </span>
+          <button id="prep-play" class="link">▶ play</button>
+        </div>
         <div id="prep-prev" class="prep-prev"></div>
         <div id="prep-sentence" class="prep-sentence"></div>
         <div id="prep-translation" class="prep-translation" hidden></div>
         <div id="prep-word" class="prep-word"></div>
         <div class="prep-actions">
+          <button data-key="Backspace">Back <kbd>⌫</kbd></button>
           <button data-key="Space">Translation <kbd>Space</kbd></button>
           <button data-key="Tab">Next word <kbd>Tab</kbd></button>
           <button data-key="a">Add <kbd>A</kbd></button>
@@ -59,17 +74,29 @@
 
     <section id="tab-cards" class="tab-body" hidden>
       <div class="cards-head">
-        <div id="anki-state" class="status"></div>
-        <div class="row">
-          <button id="cards-retry">Send to Anki now</button>
-          <button id="cards-export">Export waiting cards</button>
-          <button id="cards-export-all" class="link">Export all</button>
-        </div>
+        <h3 id="review-title">To review</h3>
+        <details class="menu">
+          <summary class="icon" title="More">⋯</summary>
+          <div class="menu-body">
+            <button id="export-waiting" class="link">Export cards waiting for Anki</button>
+            <button id="export-all" class="link">Export all sent cards</button>
+          </div>
+        </details>
       </div>
-      <h3>Waiting for Anki</h3>
-      <ul id="cards-queue" class="card-list"></ul>
-      <h3>Sent</h3>
-      <ul id="cards-sent" class="card-list"></ul>
+      <p id="review-hint" class="muted small pad"></p>
+      <div id="drafts"></div>
+      <div id="send-bar" class="send-bar" hidden>
+        <button id="send-cards" class="primary"></button>
+      </div>
+      <section id="waiting-box" hidden>
+        <h3>Waiting for Anki</h3>
+        <p class="muted small pad">Anki was closed. These are sent automatically within a minute after you open it.</p>
+        <ul id="cards-queue" class="card-list"></ul>
+      </section>
+      <details id="sent-box" class="pad">
+        <summary class="muted">Sent to Anki <span id="sent-count"></span></summary>
+        <ul id="cards-sent" class="card-list"></ul>
+      </details>
     </section>
   </main>
 
