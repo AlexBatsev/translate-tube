@@ -19,6 +19,12 @@ test('buildCard fills every note field', () => {
   assert.equal(Object.keys(c).length, 7);
 });
 
+test('buildCard shows the dictionary form but bolds the form from the video', () => {
+  const c = buildCard({ term: 'blow it', surface: 'blew it', translation: 'x', sentence: 'I totally blew it today.' });
+  assert.equal(c.Word, 'blow it');
+  assert.equal(c.Sentence, 'I totally <b>blew it</b> today.');
+});
+
 test('cardsToTsv writes Anki import headers', () => {
   const tsv = cardsToTsv([{ fields: buildCard({ term: 'a\tb', translation: 'x' }) }], 'Deck');
   const lines = tsv.trim().split('\n');

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseJson3, buildSentences, sentenceAt, tokenize, markHighlights } from '../src/lib/transcript.js';
+import { parseJson3, buildSentences, sentenceAt, tokenize, markHighlights, findPhrases } from '../src/lib/transcript.js';
 
 const asr = {
   events: [
@@ -53,4 +53,10 @@ test('markHighlights marks multi-word phrases', () => {
   const marked = t.filter((_, i) => m[i] === 0).map((x) => x.text).join('');
   assert.equal(marked, 'break the ice');
   assert.equal(t[m.indexOf(1)].text, 'again');
+});
+
+test('findPhrases finds non-overlapping ranges in order', () => {
+  const r = findPhrases('Сьогодні ми розпочали сезон з тріском.', ['з тріском', 'розпочали', '', 'відсутнє']);
+  assert.deepEqual(r.map((x) => x.index), [1, 0]);
+  assert.equal('Сьогодні ми розпочали сезон з тріском.'.slice(r[0].start, r[0].end), 'розпочали');
 });

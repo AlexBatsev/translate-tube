@@ -114,3 +114,26 @@ export function markHighlights(tokens, phrases) {
   });
   return marks;
 }
+
+// Finds each phrase in text (case-insensitive, first free occurrence).
+// Returns non-overlapping ranges sorted by position: { start, end, index }.
+export function findPhrases(text, phrases) {
+  const lower = String(text).toLowerCase();
+  const ranges = [];
+  phrases.forEach((p, index) => {
+    const needle = String(p ?? '').trim().toLowerCase();
+    if (!needle) return;
+    let from = 0;
+    for (;;) {
+      const start = lower.indexOf(needle, from);
+      if (start < 0) return;
+      const end = start + needle.length;
+      if (!ranges.some((r) => start < r.end && end > r.start)) {
+        ranges.push({ start, end, index });
+        return;
+      }
+      from = start + 1;
+    }
+  });
+  return ranges.sort((a, b) => a.start - b.start);
+}

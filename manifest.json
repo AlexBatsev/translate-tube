@@ -29,25 +29,24 @@
   "permissions": ["storage", "sidePanel", "tabs", "alarms", "downloads", "scripting"],
   "host_permissions": [
     "https://www.youtube.com/*",
+    "https://m.youtube.com/*",
     "http://127.0.0.1:8765/*",
     "http://localhost:8765/*",
     "http://localhost:11434/*",
     "http://127.0.0.1:11434/*",
     "https://generativelanguage.googleapis.com/*",
     "https://api.anthropic.com/*",
-    "https://api.openai.com/*",
-    "https://api-free.deepl.com/*",
-    "https://api.deepl.com/*"
+    "https://api.openai.com/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*"],
+      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
       "js": ["src/content/main-world.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["https://www.youtube.com/*"],
+      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
       "js": ["src/content/youtube.js"],
       "run_at": "document_idle"
     }

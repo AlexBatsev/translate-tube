@@ -1,13 +1,19 @@
 export class ProviderError extends Error {
-  constructor(message, status) {
+  constructor(message, status, { timeout = false, cancelled = false } = {}) {
     super(message);
     this.status = status;
+    this.timeout = timeout;
+    this.cancelled = cancelled;
   }
 }
 
-export async function requestJson(url, { method = 'GET', headers = {}, body, timeoutMs = 60000 } = {}) {
+// `signal` lets the caller cancel (e.g. when the user opens another video).
+export async function requestJson(url, { method = 'GET', headers = {}, body, timeoutMs = 60000, signal } = {}) {
+  if (signal?.aborted) throw new ProviderError('Cancelled.', 0, { cancelled: true });
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const cancel = () => ctrl.abort();
+  signal?.addEventListener('abort', cancel);
   let res;
   try {
     res = await fetch(url, {
@@ -17,9 +23,14 @@ export async function requestJson(url, { method = 'GET', headers = {}, body, tim
       signal: ctrl.signal
     });
   } catch (e) {
-    throw new ProviderError(e.name === 'AbortError' ? 'The request timed out.' : `Could not reach ${new URL(url).host}: ${e.message}`);
+    if (signal?.aborted) throw new ProviderError('Cancelled.', 0, { cancelled: true });
+    if (e.name === 'AbortError') {
+      throw new ProviderError(`No answer after ${Math.round(timeoutMs / 1000)} seconds.`, 0, { timeout: true });
+    }
+    throw new ProviderError(`Could not reach ${new URL(url).host}: ${e.message}`);
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
   }
   const text = await res.text();
   let data;

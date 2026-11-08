@@ -8,7 +8,7 @@ export const SELF_CHECK = {
     ['achieve', 'reluctant', 'budget', 'gather', 'rely'],
     ['thorough', 'cunning', 'scrutiny', 'wary', 'blunt'],
     ['ubiquitous', 'cajole', 'quaint', 'brusque', 'mollify'],
-    ['obsequious', 'perfunctory', 'pusillanimous', 'crapulent', 'tergiversate']
+    ['obsequious', 'perfunctory', 'recalcitrant', 'sycophant', 'ineffable']
   ]
 };
 
