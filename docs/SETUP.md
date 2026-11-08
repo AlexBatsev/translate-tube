@@ -45,7 +45,7 @@ When Anki is closed, sent cards wait in the extension and go to Anki within a mi
 1. Open any YouTube video that has subtitles (auto-generated ones work too).
 2. Click the Translate Tube icon or press <kbd>Alt</kbd>+<kbd>T</kbd>. The side panel opens next to the video.
 3. **Transcript** tab: click a word or drag over a phrase to translate it, then **Add to cards**.
-4. **Prepare** tab: press **Start** and use the keyboard to go through the hard sentences before watching. Use **−** / **+** if too many or too few words are highlighted.
+4. **Prepare** tab: press **Start** and use the keyboard to go through the hard sentences before watching. Use **−** (lower level, more words) / **+** (higher level, fewer words) if too few or too many words are highlighted.
 5. **Cards** tab: check the words you added, then press **Send to Anki**.
 
 ## Troubleshooting

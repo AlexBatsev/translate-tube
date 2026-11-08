@@ -80,3 +80,9 @@ test('parseWordList takes the first column', () => {
 test('normalizeWord lowercases and trims punctuation', () => {
   assert.equal(normalizeWord('“Don’t,”'), "don't");
 });
+
+test('OpenRouter picks a fast paid model first, free ones as a fallback', () => {
+  const or = PROVIDERS.find((p) => p.id === 'openrouter');
+  const r = rankModels(or, ['meta-llama/llama-3.3-70b-instruct', 'google/gemini-3.6-flash:free', 'google/gemini-3.6-flash', 'google/gemini-3.5-flash', 'openai/gpt-5-mini']);
+  assert.deepEqual(r.slice(0, 4), ['google/gemini-3.6-flash', 'google/gemini-3.5-flash', 'openai/gpt-5-mini', 'google/gemini-3.6-flash:free']);
+});

@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
     gemini: { apiKey: '', model: '' },
     claude: { apiKey: '', model: '' },
     openai: { apiKey: '', model: '' },
+    openrouter: { apiKey: '', model: '' },
     ollama: { host: 'http://localhost:11434', model: '' }
   },
   // 1 (beginner) .. 6 (near native). Shown to the user in plain words.
@@ -34,7 +35,7 @@ export const DEFAULT_SETTINGS = {
   batchSize: 10
 };
 
-const PROVIDER_IDS = ['gemini', 'claude', 'openai', 'ollama'];
+const PROVIDER_IDS = ['gemini', 'claude', 'openai', 'openrouter', 'ollama'];
 
 export const LEVELS = [
   { value: 1, label: 'Just starting', hint: 'I know a few hundred everyday words.' },
