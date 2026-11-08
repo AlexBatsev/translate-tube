@@ -5,7 +5,7 @@ Learn a language from the YouTube videos you already watch.
 Translate Tube is a free, open-source Chrome / Edge extension. It opens a side panel next to the video (never on top of it) with:
 
 - **Transcript** – the subtitles as a scrolling text. The sentence being spoken is highlighted, with the lines before and after it. The whole transcript is analysed once when a video opens, so words that are hard for your level are underlined right away, and you can show a translation under the current line or under every line. Works for regular videos and Shorts (if they have subtitles). Click an underlined word for its meaning at once; click any other word (or drag over a phrase) to get a translation **in this context**. Idioms and phrasal verbs are treated as one unit, with each word explained too.
-- **Prepare** – go through the video's hard sentences *before* watching. The keyboard does the rest:
+- **Prepare** – go through the hard sentences *before* watching, from where the video is now to the end. The keyboard does the rest:
 
   | Key | Action |
   | --- | --- |
@@ -15,7 +15,8 @@ Translate Tube is a free, open-source Chrome / Edge extension. It opens a side p
   | <kbd>S</kbd> | I know it (never highlighted again; the ↶ button at the top undoes the last ones, one by one) |
   | <kbd>Enter</kbd> | next highlighted word, then the next sentence |
   | <kbd>Backspace</kbd> | back to the previous sentence |
-  | <kbd>−</kbd> / <kbd>+</kbd> | fewer / more highlighted words (changes your level at once) |
+  | <kbd>−</kbd> / <kbd>+</kbd> | lower / raise your level: more / fewer highlighted words |
+  | <kbd>U</kbd> | undo the last “I know it” (also the ↶ button at the top) |
   | <kbd>P</kbd> | play this sentence in the video |
   | click | look up any other word |
 
@@ -33,6 +34,7 @@ Pick one in Settings, paste a key, press **Test**. The model is chosen automatic
 | Google Gemini | free tier | Recommended. Key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 | Anthropic Claude | paid API | Key from [console.anthropic.com](https://console.anthropic.com/settings/keys) |
 | OpenAI | paid API | Key from [platform.openai.com](https://platform.openai.com/api-keys) |
+| OpenRouter | pay per use, some free models | One key for models from many companies, managed on [openrouter.ai](https://openrouter.ai/settings/keys) |
 | Ollama | free, local | Runs on your computer. Start Ollama with `OLLAMA_ORIGINS=chrome-extension://*` |
 
 Keys are stored only in `chrome.storage.local` on your computer and are sent only to the provider you chose.

@@ -51,7 +51,7 @@ export function parseJsonStrict(text) {
 // no answer, or a model that does not accept this kind of request.
 export function shouldTryNextModel(e) {
   if (e.timeout) return true;
-  if ([404, 429, 500, 502, 503, 504].includes(e.status)) return true;
+  if ([402, 404, 429, 500, 502, 503, 504].includes(e.status)) return true;
   return e.status === 400 && /(model|instruction|not supported|not enabled|unsupported)/i.test(e.message);
 }
 
@@ -65,6 +65,7 @@ export function failureReason(e) {
   if (e.timeout) return 'no answer';
   if (isRetired(e)) return 'retired';
   if (e.status === 429) return 'limit reached';
+  if (e.status === 402) return 'no credits';
   if ([500, 502, 503, 504].includes(e.status)) return 'busy';
   if (e.status === 400) return 'not suitable';
   return e.message;
@@ -77,7 +78,7 @@ export function errorKind(e) {
   if (e?.kind) return e.kind;
   if (e?.status === 401 || e?.status === 403) return 'key';
   if (e?.status === 400 && /api key|api_key|invalid key|key not valid|authentication|permission/i.test(e.message ?? '')) return 'key';
-  if (e?.status === 429) return 'limit';
+  if (e?.status === 429 || e?.status === 402) return 'limit';
   return '';
 }
 
@@ -189,7 +190,7 @@ async function runOne(settings, req, { maxTries = 4, onAttempt } = {}) {
         if (errorKind(e) === 'key') throw new AiError(`${provider.name} rejected the key (${e.message}). Check it in Settings.`, 'key');
         throw e;
       }
-      if (e.status === 429) limited++;
+      if (e.status === 429 || e.status === 402) limited++;
       await markModel(provider.id, model, isRetired(e) ? 'retired' : 'fail');
       tried.push(`${model} ${failureReason(e)}`);
     }

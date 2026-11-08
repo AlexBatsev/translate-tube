@@ -189,14 +189,24 @@ $('recent-close').addEventListener('click', closeRecent);
 
 async function updateUndo() {
   const { knownUndo = [] } = await chrome.storage.local.get('knownUndo');
-  $('undo-known').hidden = !knownUndo.length;
+  $('undo-known').disabled = !knownUndo.length;
   const last = knownUndo.at(-1);
   $('undo-count').textContent = knownUndo.length > 1 ? knownUndo.length : '';
-  $('undo-known').title = last ? `Undo “I know it” for “${last.join(', ')}”${knownUndo.length > 1 ? ` (${knownUndo.length} steps)` : ''}` : '';
+  $('undo-known').title = last
+    ? `Undo “I know it” for “${last.join(', ')}” (U)${knownUndo.length > 1 ? `, ${knownUndo.length} steps` : ''}`
+    : 'Undo “I know it” (U): nothing to undo yet';
 }
-$('undo-known').addEventListener('click', async () => {
+async function undoLastKnown() {
   const back = await undoKnown();
-  if (back.length) toast(`“${back.join(', ')}” is a new word again`, 3000);
+  toast(back.length ? `“${back.join(', ')}” is a new word again` : 'Nothing to undo', 3000);
+}
+$('undo-known').addEventListener('click', undoLastKnown);
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select')) return;
+  if (e.key === 'u' || e.key === 'U') {
+    e.preventDefault();
+    undoLastKnown();
+  }
 });
 
 // ---------- transcript + analysis ----------
@@ -321,10 +331,8 @@ chrome.storage.onChanged.addListener(async (changes) => {
         before.provider !== s.provider || before.backupProvider !== s.backupProvider || JSON.stringify(before.providers) !== JSON.stringify(s.providers);
       if (aiChanged && state.analysis.error) state.analysis.retry();
     }
-    if (before.level !== s.level || before.showSentenceTranslation !== s.showSentenceTranslation) {
-      refreshLines();
-      emit('level');
-    }
+    if (before.level !== s.level || before.showSentenceTranslation !== s.showSentenceTranslation) refreshLines();
+    if (before.level !== s.level) emit('level');
   }
   if (changes.knownWords || changes.deckWords) {
     state.words = await getWordSets();

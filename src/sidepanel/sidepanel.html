@@ -14,7 +14,7 @@
       <button role="tab" data-tab="cards">Cards <span id="cards-count" class="pill" hidden></span></button>
     </nav>
     <span class="top-actions">
-      <button id="undo-known" class="icon undo" title="Undo the last “I know it”" hidden>↶ <span id="undo-count"></span></button>
+      <button id="undo-known" class="icon undo" title="Undo the last “I know it” (U)" disabled>↶ <span id="undo-count"></span></button>
       <button id="open-recent" class="icon" title="Recent videos" aria-label="Recent videos" aria-expanded="false">🕘</button>
       <button id="open-settings" class="icon" title="Settings" aria-label="Settings">⚙</button>
     </span>
@@ -65,7 +65,8 @@
           <div><kbd>S</kbd> skip, I know it</div>
           <div><kbd>Enter</kbd> next word, then next sentence</div>
           <div><kbd>Backspace</kbd> back to previous sentence</div>
-          <div><kbd>−</kbd> / <kbd>+</kbd> fewer / more highlights</div>
+          <div><kbd>−</kbd> / <kbd>+</kbd> lower / raise your level (more / fewer words)</div>
+          <div><kbd>U</kbd> undo the last “I know it”</div>
           <div><kbd>P</kbd> play this sentence</div>
           <div>Click any other word to look it up</div>
         </div>
@@ -74,9 +75,9 @@
         <div class="prep-progress">
           <span id="prep-pos"></span>
           <span class="level-ctl">
-            <button id="lvl-fewer" class="mini" title="Fewer highlights (−)">−</button>
+            <button id="lvl-down" class="mini" title="Lower level: more words highlighted (−)">−</button>
             <span id="lvl-label"></span>
-            <button id="lvl-more" class="mini" title="More highlights (+)">+</button>
+            <button id="lvl-up" class="mini" title="Higher level: fewer words highlighted (+)">+</button>
           </span>
           <button id="prep-play" class="link">▶ play</button>
         </div>

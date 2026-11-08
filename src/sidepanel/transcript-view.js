@@ -8,6 +8,10 @@ import { addDraft } from '../lib/drafts.js';
 
 let activeIdx = -1;
 let follow = true;
+let lastUserScroll = 0;
+// After the user scrolls the transcript, it follows the video again once
+// they leave it alone for this long.
+const FOLLOW_AGAIN_MS = 5000;
 let popoverItem = null; // { item, sentence } shown in the popover
 let pausedByUs = false; // we paused the video for a lookup; resume on close
 
@@ -81,6 +85,11 @@ document.addEventListener('mouseup', () => {
 
 export function updateActive(force = false) {
   if (!state.sentences.length) return;
+  if (!follow && Date.now() - lastUserScroll > FOLLOW_AGAIN_MS && $('popover').hidden && !selecting) {
+    follow = true;
+    $('follow-now').hidden = true;
+    force = true;
+  }
   const idx = sentenceAt(state.sentences, state.ms + 150);
   if (idx === activeIdx && !force) return;
   activeIdx = idx;
@@ -89,9 +98,18 @@ export function updateActive(force = false) {
     const d = i - idx;
     lines[i].className = `line${d === 0 ? ' active' : d < 0 ? ' past' : ''}${Math.abs(d) <= 2 && d !== 0 ? ' near' : ''}`;
   }
-  if (follow && idx >= 0 && state.tab === 'transcript') {
-    lines[idx]?.scrollIntoView({ block: 'center', behavior: force ? 'auto' : 'smooth' });
-  }
+  if (follow && idx >= 0 && state.tab === 'transcript') keepInView(lines[idx], force);
+}
+
+// Keeps the current line near the middle; never closer than two lines to the
+// bottom (where the popup or the "back to now" button may cover it).
+function keepInView(line, force) {
+  if (!line) return;
+  line.scrollIntoView({ block: 'center', behavior: force ? 'auto' : 'smooth' });
+  const box = $('transcript').getBoundingClientRect();
+  const r = line.getBoundingClientRect();
+  const bottom = Math.min(box.bottom, window.innerHeight) - 2 * (r.height || 24);
+  if (r.bottom > bottom) line.scrollIntoView({ block: 'center', behavior: 'auto' });
 }
 
 // Short text about the analysis: progress, a pause, or what went wrong.
@@ -130,6 +148,7 @@ export function renderAnalysisState() {
     ev,
     () => {
       follow = false;
+      lastUserScroll = Date.now();
       $('follow-now').hidden = false;
     },
     { passive: true }
