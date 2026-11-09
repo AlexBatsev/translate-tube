@@ -4,6 +4,7 @@ import { PROVIDERS, getProvider, rankModels } from '../lib/providers/index.js';
 import { testProvider, loadModels } from '../lib/ai.js';
 import { invoke } from '../lib/anki.js';
 import { SELF_CHECK, levelFromCheck, parseWordList } from '../lib/level.js';
+import { bridgeStatus } from '../lib/providers/claudecode.js';
 
 const $ = (id) => document.getElementById(id);
 const wizard = location.hash === '#welcome';
@@ -91,11 +92,13 @@ function renderProviderConfig() {
   $('field-host').hidden = !p.fields.includes('host');
   $('key-link').href = p.keyUrl;
   $('key-link').textContent = p.id === 'ollama' ? 'Download Ollama' : 'Get a key';
+  $('host-label').textContent = p.hostLabel ?? 'Ollama address';
   $('apiKey').value = cfg.apiKey ?? '';
   $('host').value = cfg.host ?? '';
   renderModels();
   status($('provider-status'), '');
   setProviderOk(false);
+  renderBridge();
 }
 
 function setProviderOk(ok) {
@@ -160,6 +163,7 @@ $('test-provider').addEventListener('click', async () => {
     let msg = e.message;
     if (e.timeout) msg += ' The model may be overloaded. Try again, or choose another model.';
     if (p.id === 'ollama' && /403|reach/.test(msg)) msg += ' Start Ollama with OLLAMA_ORIGINS=chrome-extension://* set.';
+    if (p.id === 'claudecode' && /reach/.test(msg)) msg = 'The Claude bridge is not running. Follow the steps under “Set up Claude on this computer”.';
     status(el, msg, 'err');
   } finally {
     clearInterval(timer);
@@ -362,12 +366,14 @@ function renderBackup() {
       .map((p) => `<option value="${p.id}">${p.name}</option>`)
       .join('');
   sel.value = settings.backupProvider && settings.backupProvider !== settings.provider ? settings.backupProvider : '';
+  renderBridge();
   const p = sel.value ? getProvider(sel.value) : null;
   $('backup-config').hidden = !p;
   if (!p) return;
   const cfg = settings.providers[p.id] ?? {};
   $('backup-key-field').hidden = !p.fields.includes('apiKey');
   $('backup-host-field').hidden = !p.fields.includes('host');
+  $('backup-host-label').textContent = p.hostLabel ?? 'Ollama address';
   $('backup-key-link').href = p.keyUrl;
   $('backup-key').value = cfg.apiKey ?? '';
   $('backup-host').value = cfg.host ?? '';
@@ -439,11 +445,80 @@ $('data-load').addEventListener('change', async (e) => {
   }
 });
 
+// ---------- Claude bridge setup ----------
+
+let bridgeTimer = null;
+let bridgeTested = false;
+const isWindows = /win/i.test(navigator.userAgentData?.platform ?? navigator.platform ?? '');
+
+function bridgeWanted() {
+  return settings.provider === 'claudecode' || $('backup-provider').value === 'claudecode';
+}
+
+function bridgeStepsDone(n) {
+  document.querySelectorAll('#bridge-steps li').forEach((li) => li.classList.toggle('done', Number(li.dataset.bs) <= n));
+}
+
+// Shows the setup steps while Claude (your plan) is the main or backup AI
+// and checks every few seconds whether the bridge answers.
+function renderBridge() {
+  const want = bridgeWanted();
+  $('bridge-setup').hidden = !want || (wizard && step !== 1);
+  $('bridge-steps').hidden = !isWindows;
+  $('bridge-other-os').hidden = isWindows;
+  clearInterval(bridgeTimer);
+  bridgeTimer = null;
+  if (!want) return;
+  const check = async () => {
+    const st = await bridgeStatus(settings.providers.claudecode ?? {});
+    if (!st.running) {
+      bridgeStepsDone(0);
+      status($('bridge-live'), 'Waiting for the bridge… not found yet. Do the steps above; this updates by itself.');
+      return;
+    }
+    if (!st.signedIn) {
+      bridgeStepsDone(3);
+      status($('bridge-live'), 'The bridge is running, but Claude Code is not signed in. In PowerShell run: claude auth login', 'err');
+      return;
+    }
+    bridgeStepsDone(4);
+    status($('bridge-live'), 'The Claude bridge is running.', 'ok');
+    // Test once by itself, like Anki connects by itself.
+    if (!bridgeTested && settings.provider === 'claudecode' && !providerOk && !$('test-provider').disabled) {
+      bridgeTested = true;
+      $('test-provider').click();
+    }
+  };
+  check();
+  bridgeTimer = setInterval(check, 3000);
+}
+
+async function bridgeScript() {
+  return (await fetch(chrome.runtime.getURL('src/setup/claude-bridge.ps1'))).text();
+}
+
+async function copyCommand(button, remove) {
+  // Wrapped in & { } so it can be pasted into PowerShell as one command.
+  await navigator.clipboard.writeText(`& {\n${await bridgeScript()}\n}${remove ? ' -Remove' : ''}\n`);
+  const label = button.textContent;
+  button.textContent = 'Copied';
+  setTimeout(() => (button.textContent = label), 1500);
+}
+
+$('bridge-copy').addEventListener('click', (e) => copyCommand(e.currentTarget, false));
+$('bridge-remove').addEventListener('click', (e) => copyCommand(e.currentTarget, true));
+$('bridge-show').addEventListener('click', async () => {
+  const pre = $('bridge-script');
+  pre.textContent = await bridgeScript();
+  pre.hidden = !pre.hidden;
+});
+
 // ---------- wizard ----------
 
 function showStep(n) {
   step = n;
   document.querySelectorAll('section[data-step]').forEach((s) => (s.hidden = Number(s.dataset.step) !== n));
+  renderBridge();
   document.querySelectorAll('#steps li').forEach((li) => li.classList.toggle('on', Number(li.dataset.step) === n));
   $('back').hidden = n === 0;
   $('next').textContent = n === 3 ? 'Finish' : 'Next';

@@ -32,6 +32,7 @@ Pick one in Settings, paste a key, press **Test**. The model is chosen automatic
 | Provider | Cost | Notes |
 | --- | --- | --- |
 | Google Gemini | free tier | Recommended. Key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| Claude (your Claude plan) | included in Claude Pro/Max | No API key. Settings has a one-time setup: copy a command into PowerShell and it installs [OCP](https://github.com/dtzp555-max/ocp), a local bridge that runs the official Claude Code app. Counts toward your plan's usage limits |
 | Anthropic Claude | paid API | Key from [console.anthropic.com](https://console.anthropic.com/settings/keys) |
 | OpenAI | paid API | Key from [platform.openai.com](https://platform.openai.com/api-keys) |
 | OpenRouter | pay per use, some free models | One key for models from many companies, managed on [openrouter.ai](https://openrouter.ai/settings/keys) |

@@ -58,4 +58,5 @@ When Anki is closed, sent cards wait in the extension and go to Anki within a mi
 - **"No subtitles in your learning language"** – the video has no subtitles in that language. Check the language in Settings.
 - **"Anki is not running"** – open Anki. Cards are kept and sent later.
 - **Ollama "403"** – quit Ollama and start it with the environment variable `OLLAMA_ORIGINS=chrome-extension://*`.
+- **Claude (your Claude plan) "bridge is not running"** – the bridge starts when you sign in to Windows. To start it now, paste the setup command from Settings into PowerShell again; finished steps are skipped.
 - **Anki asks to set up again / lost the add-on** – Anki keeps add-ons per computer user. Install AnkiConnect again (step 3) and restart Anki.

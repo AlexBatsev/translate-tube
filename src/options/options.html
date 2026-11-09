@@ -39,7 +39,7 @@
         <label id="field-apiKey">API key <a id="key-link" target="_blank" rel="noopener">Get a key</a>
           <input id="apiKey" type="password" autocomplete="off" spellcheck="false">
         </label>
-        <label id="field-host">Ollama address<input id="host" type="url" spellcheck="false"></label>
+        <label id="field-host"><span id="host-label">Ollama address</span><input id="host" type="url" spellcheck="false"></label>
         <div class="row">
           <button id="test-provider">Test</button>
           <span id="provider-status" class="status"></span>
@@ -58,6 +58,28 @@
       </div>
     </section>
 
+    <section class="panel" data-step="1" id="bridge-setup" hidden>
+      <h2>Set up Claude on this computer</h2>
+      <p class="muted">Translate Tube reaches your Claude plan through OCP, a free open-source bridge that runs the official Claude Code app on this computer. Your Claude login stays inside Claude Code.</p>
+      <ol class="anki-steps" id="bridge-steps" data-os="win">
+        <li data-bs="1"><b>Copy the setup command:</b> <button id="bridge-copy" class="mini" type="button">Copy</button></li>
+        <li data-bs="2"><b>Open PowerShell:</b> press <kbd>Win</kbd>, type <code>PowerShell</code> and press <kbd>Enter</kbd>.</li>
+        <li data-bs="3"><b>Paste and run:</b> right-click inside the PowerShell window (if asked, choose <b>Paste anyway</b>), then press <kbd>Enter</kbd>. It installs what is missing (Node.js, Claude Code), opens a browser to sign in to Claude if needed, and starts the bridge. Windows may ask for permission to install. Takes 1–5 minutes.</li>
+        <li data-bs="4"><b>Done:</b> this page notices the bridge by itself. It also starts by itself whenever you sign in to Windows.</li>
+      </ol>
+      <p id="bridge-other-os" class="muted" hidden>The automatic setup is for Windows. On Mac or Linux, install OCP with the steps on <a href="https://github.com/dtzp555-max/ocp#install" target="_blank" rel="noopener">its page</a>; this page notices it once it runs.</p>
+      <p id="bridge-live" class="status"></p>
+      <details>
+        <summary>What the setup does, and how to remove it</summary>
+        <p class="muted small">It installs Node.js and Claude Code only if they are missing, puts OCP into <code>%LOCALAPPDATA%\TranslateTube</code>, and adds “Translate Tube Claude bridge” to your Windows start-up programs. OCP accepts requests only from this computer. Requests count toward your Claude plan’s usage limits.</p>
+        <div class="row">
+          <button id="bridge-show" type="button">Show the script</button>
+          <button id="bridge-remove" type="button">Copy removal command</button>
+        </div>
+        <pre id="bridge-script" class="script" hidden></pre>
+      </details>
+    </section>
+
     <section class="panel" data-step="1">
       <h2>Backup AI <span class="muted small">(optional)</span></h2>
       <p class="muted">Used while your main AI is out of its free limit or not answering. The main AI is used again once it recovers. Leave it on <b>None</b> to skip; you can add one later in Settings.</p>
@@ -66,7 +88,7 @@
         <label id="backup-key-field">API key <a id="backup-key-link" target="_blank" rel="noopener">Get a key</a>
           <input id="backup-key" type="password" autocomplete="off" spellcheck="false">
         </label>
-        <label id="backup-host-field">Ollama address<input id="backup-host" type="url" spellcheck="false"></label>
+        <label id="backup-host-field"><span id="backup-host-label">Ollama address</span><input id="backup-host" type="url" spellcheck="false"></label>
         <div class="row">
           <button id="backup-test">Test</button>
           <span id="backup-status" class="status"></span>

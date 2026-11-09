@@ -61,3 +61,4 @@ input[type=search] { font: inherit; color: inherit; background: var(--bg); borde
 a.button { display: inline-block; text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 14px; }
 a.button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 label.check { display: flex; margin: 6px 0; }
+pre.script { max-height: 320px; overflow: auto; font: 12px/1.4 ui-monospace, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; white-space: pre-wrap; }

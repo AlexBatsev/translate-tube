@@ -26,7 +26,7 @@
     "default_path": "src/sidepanel/sidepanel.html"
   },
   "options_page": "src/options/options.html",
-  "permissions": ["storage", "sidePanel", "tabs", "alarms", "downloads", "scripting"],
+  "permissions": ["storage", "sidePanel", "tabs", "alarms", "downloads", "scripting", "declarativeNetRequestWithHostAccess"],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://m.youtube.com/*",
@@ -34,6 +34,8 @@
     "http://localhost:8765/*",
     "http://localhost:11434/*",
     "http://127.0.0.1:11434/*",
+    "http://127.0.0.1:3456/*",
+    "http://localhost:3456/*",
     "https://generativelanguage.googleapis.com/*",
     "https://api.anthropic.com/*",
     "https://api.openai.com/*",
