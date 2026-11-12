@@ -23,7 +23,14 @@
     <div class="recent-head"><b>Recent videos</b><button id="recent-close" class="icon" aria-label="Close">✕</button></div>
     <ul id="recent-list" class="recent-list"></ul>
   </div>
-  <div id="video-title" class="video-title"></div>
+  <div class="sub">
+    <span id="video-title" class="video-title"></span>
+    <span class="level-ctl">
+      <button id="lvl-down" class="mini" title="Lower level: more words highlighted (−)">−</button>
+      <span id="lvl-label"></span>
+      <button id="lvl-up" class="mini" title="Higher level: fewer words highlighted (+)">+</button>
+    </span>
+  </div>
   <div id="reminder" class="reminder" hidden></div>
 
   <main>
@@ -37,12 +44,17 @@
           </select>
         </label>
         <span id="analysis-state" class="muted small"></span>
-        <button id="legend-btn" class="icon small" title="What do the colours mean?" aria-expanded="false">?</button>
+        <span>
+          <button id="loop-btn" class="icon small" title="Repeat the current line (L)" aria-pressed="false">⟳</button>
+          <button id="legend-btn" class="icon small" title="Colours and keys" aria-expanded="false">?</button>
+        </span>
       </div>
       <div id="legend" class="legend" hidden>
         <div><span class="hl">word</span> hard for your level: click for the meaning</div>
-        <div><span class="w deck">word</span> already in your Anki cards</div>
+        <div><span class="w deck">word</span> already in your cards</div>
         <div class="muted">Click any other word, or drag over a phrase, to translate it in context.</div>
+        <div class="muted"><kbd>←</kbd> <kbd>→</kbd> previous / next line · <kbd>R</kbd> replay the line · <kbd>L</kbd> repeat the line · <kbd>−</kbd> <kbd>+</kbd> level</div>
+        <div class="muted">With a translation open: <kbd>A</kbd> add to cards · <kbd>S</kbd> I know it · <kbd>Esc</kbd> close</div>
       </div>
       <div id="transcript-status" class="status"></div>
       <div id="transcript" class="transcript" tabindex="0"></div>
@@ -51,7 +63,7 @@
 
     <section id="tab-prepare" class="tab-body" hidden>
       <div id="prep-start" class="prep-start">
-        <p>Go through the hard sentences <b>before</b> you watch. Words you add wait in the Cards tab for a final check; words you skip teach Translate Tube what you already know.</p>
+        <p>Go through the hard sentences <b>before</b> you watch, as far as you like: stop any time and just watch. Words you add wait in the Cards tab for a final check; words you mark as known are never highlighted again.</p>
         <div id="prep-transcript-status" class="status"></div>
         <label class="check"><input type="checkbox" id="prep-only-hard" checked> Only show sentences with hard words</label>
         <div class="row">
@@ -60,9 +72,8 @@
         </div>
         <div class="keys">
           <div><kbd>Space</kbd> show translation</div>
-          <div><kbd>Tab</kbd> next highlighted word</div>
           <div><kbd>A</kbd> add word to cards</div>
-          <div><kbd>S</kbd> skip, I know it</div>
+          <div><kbd>S</kbd> I know it</div>
           <div><kbd>Enter</kbd> next word, then next sentence</div>
           <div><kbd>Backspace</kbd> back to previous sentence</div>
           <div><kbd>−</kbd> / <kbd>+</kbd> lower / raise your level (more / fewer words)</div>
@@ -74,11 +85,6 @@
       <div id="prep-card" class="prep-card" hidden tabindex="0">
         <div class="prep-progress">
           <span id="prep-pos"></span>
-          <span class="level-ctl">
-            <button id="lvl-down" class="mini" title="Lower level: more words highlighted (−)">−</button>
-            <span id="lvl-label"></span>
-            <button id="lvl-up" class="mini" title="Higher level: fewer words highlighted (+)">+</button>
-          </span>
           <button id="prep-play" class="link">▶ play</button>
         </div>
         <div id="prep-prev" class="prep-prev"></div>
@@ -88,9 +94,8 @@
         <div class="prep-actions">
           <button data-key="Backspace">Back <kbd>⌫</kbd></button>
           <button data-key="Space">Translation <kbd>Space</kbd></button>
-          <button data-key="Tab">Next word <kbd>Tab</kbd></button>
           <button data-key="a">Add <kbd>A</kbd></button>
-          <button data-key="s">Know it <kbd>S</kbd></button>
+          <button data-key="s">I know it <kbd>S</kbd></button>
           <button data-key="Enter" class="primary">Next <kbd>Enter</kbd></button>
         </div>
       </div>

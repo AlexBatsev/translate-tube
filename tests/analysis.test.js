@@ -18,8 +18,12 @@ test('visibleItems filters by level and known words', () => {
   assert.deepEqual(visibleItems(items, 1, new Set()).map((i) => i.text), ['cat', 'blew it', 'nook']);
   assert.deepEqual(visibleItems(items, 3, new Set()).map((i) => i.text), ['blew it', 'nook']);
   assert.deepEqual(visibleItems(items, 3, new Set(['blow it'])).map((i) => i.text), ['nook']);
-  // The top level still shows the rarest words.
-  assert.equal(isHardFor({ level: 6 }, 6), true);
+  // Words already in the cards are not offered again.
+  assert.deepEqual(visibleItems(items, 1, new Set(), new Set(['blow it'])).map((i) => i.text), ['cat', 'nook']);
+  // Every level changes what is shown; the top one still shows the rarest words.
+  assert.equal(isHardFor({ level: 5 }, 4), true);
+  assert.equal(isHardFor({ level: 5 }, 5), false);
+  assert.equal(isHardFor({ level: 6 }, 5), true);
   assert.deepEqual(visibleItems(undefined, 3, new Set()), []);
 });
 

@@ -4,7 +4,7 @@ import { explainTerm } from '../lib/ai.js';
 import { saveSettings, markKnown, undoKnown } from '../lib/storage.js';
 import { visibleItems } from '../lib/analysis.js';
 import { sentenceAt } from '../lib/transcript.js';
-import { addDraft } from '../lib/drafts.js';
+import { addDraft, fillNote } from '../lib/drafts.js';
 
 let activeIdx = -1;
 let follow = true;
@@ -25,7 +25,7 @@ export function setTranscriptStatus(html) {
 function sentenceItems(id) {
   const r = state.analysis?.results.get(id);
   const all = r?.items ?? [];
-  const visible = visibleItems(all, state.settings.level, state.words.known);
+  const visible = visibleItems(all, state.settings.level, state.words.known, state.words.deck);
   // Visible items first so they win when phrases overlap.
   return { items: [...visible, ...all.filter((x) => !visible.includes(x))], strong: visible.length, translation: r?.translation ?? '' };
 }
@@ -39,6 +39,7 @@ function lineHtml(s) {
 export function renderTranscript() {
   $('transcript').innerHTML = state.sentences.map((s) => `<div class="line" data-id="${s.id}">${lineHtml(s)}</div>`).join('');
   activeIdx = -1;
+  setLoop(null);
   applyTranslationMode();
   updateActive(true);
 }
@@ -127,7 +128,7 @@ export function analysisText(a = state.analysis) {
     const msg = [...a.failed.values()][0];
     return `<span class="err" title="${escapeHtml(msg)}">${a.failed.size} lines not analysed: ${escapeHtml(msg)}</span> <button class="link" data-action="retry-analysis">Retry</button>`;
   }
-  if (a.done < a.total) return `<span class="spinner"></span>Analysing ${a.done}/${a.total}`;
+  if (a.running) return '<span class="spinner"></span>Analysing…';
   return '';
 }
 
@@ -159,6 +160,48 @@ $('follow-now').addEventListener('click', () => {
   $('follow-now').hidden = true;
   updateActive(true);
 });
+
+// ---- moving by line, replay and repeat ----
+
+function currentLine() {
+  return Math.max(0, sentenceAt(state.sentences, state.ms + 150));
+}
+
+function goLine(delta) {
+  if (!state.sentences.length) return;
+  const idx = Math.max(0, Math.min(state.sentences.length - 1, currentLine() + delta));
+  if (loopId != null) loopId = idx;
+  follow = true;
+  $('follow-now').hidden = true;
+  toTab({ type: 'tt:seek', ms: state.sentences[idx].start });
+}
+
+// Repeat: the line being spoken plays again and again until turned off.
+let loopId = null;
+
+function setLoop(id) {
+  loopId = id;
+  $('loop-btn').setAttribute('aria-pressed', String(id != null));
+}
+
+function toggleLoop() {
+  if (loopId != null) return setLoop(null);
+  if (!state.sentences.length) return;
+  setLoop(currentLine());
+  toast('Repeating this line. Press L to stop.');
+}
+
+// Called with every position update from the video.
+export function tickLoop() {
+  if (loopId == null || state.paused) return;
+  const s = state.sentences[loopId];
+  if (!s) return setLoop(null);
+  const end = Math.max(s.end, s.start + 800);
+  if (state.ms > end + 150 && state.ms < end + 2500) toTab({ type: 'tt:seek', ms: s.start });
+  else if (state.ms < s.start - 1500 || state.ms >= end + 2500) setLoop(null); // the viewer went elsewhere
+}
+
+$('loop-btn').addEventListener('click', toggleLoop);
 
 // ---- translation lines and legend ----
 
@@ -274,17 +317,27 @@ function renderPopover(p) {
     <div class="row">
       <button class="primary" id="pop-add">Add to cards <kbd>A</kbd></button>
       <button id="pop-replay">▶ Replay line</button>
-      <button id="pop-known" class="link">I know this</button>
+      <button id="pop-known" class="link">I know it <kbd>S</kbd></button>
     </div>`);
   $('pop-add').addEventListener('click', () => addFromPopover());
   $('pop-replay').addEventListener('click', () => {
     pausedByUs = false; // the user chose to play
     playSentence({ start: p.ms });
   });
-  $('pop-known').addEventListener('click', async () => {
-    await knowWords([p.item.lemma, p.item.text], p.item.lemma || p.item.text);
-    hidePopover();
-  });
+  $('pop-known').addEventListener('click', knowFromPopover);
+  // Analysed items get their memory note the first time they are opened.
+  if (!p.item.note && state.analysis) {
+    state.analysis.note(p.item, p.sentence).then((note) => {
+      if (note && popoverItem === p) renderPopover(p);
+    });
+  }
+}
+
+async function knowFromPopover() {
+  const p = popoverItem;
+  if (!p) return;
+  await knowWords([p.item.lemma, p.item.text], p.item.lemma || p.item.text);
+  hidePopover();
 }
 
 // "I know it" from anywhere: marks words known, with Undo in the toast.
@@ -300,10 +353,20 @@ export async function knowWords(words, label) {
   });
 }
 
+// Memory notes still being written for cards that were just added.
+export const pendingNotes = new Set();
+
 export async function addItemAsDraft(item, { sentence, sentenceTranslation, ms }) {
   const r = await addDraft(item, { sentence, sentenceTranslation, ms, videoId: state.videoId, videoTitle: state.title });
   toast(r.added ? `Added “${item.lemma || item.text}” to cards (${r.count} to review)` : 'Already in your cards');
   emit('drafts');
+  if (r.added && !item.note && state.analysis) {
+    const job = state.analysis
+      .note(item, sentence)
+      .then((note) => fillNote(r.id, note))
+      .finally(() => pendingNotes.delete(job));
+    pendingNotes.add(job);
+  }
   return r;
 }
 
@@ -314,10 +377,21 @@ async function addFromPopover() {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (e.target.closest?.('input, textarea, select')) return;
-  if ($('popover').hidden || state.tab !== 'transcript') return;
-  if (e.key === 'Escape') hidePopover();
-  if ((e.key === 'a' || e.key === 'A') && popoverItem) addFromPopover();
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select')) return;
+  if (state.tab !== 'transcript') return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (!$('popover').hidden) {
+    if (k === 'Escape') hidePopover();
+    else if (k === 'a' && popoverItem) addFromPopover();
+    else if (k === 's' && popoverItem) knowFromPopover();
+    else return;
+  } else if (k === 'ArrowLeft') goLine(-1);
+  else if (k === 'ArrowRight') goLine(+1);
+  else if (k === 'r') {
+    if (state.sentences.length) playSentence(state.sentences[currentLine()]);
+  } else if (k === 'l') toggleLoop();
+  else return;
+  e.preventDefault();
 });
 
 on('settings', applyTranslationMode);

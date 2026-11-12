@@ -33,7 +33,7 @@
 
     <section class="panel" data-step="1">
       <h2>AI provider</h2>
-      <p class="muted">Translations and memory notes come from an AI service using your own key. Keys stay in this browser.</p>
+      <p class="muted">Translations and memory notes come from an AI service of your choice. Keys stay in this browser.</p>
       <div id="providers" class="providers"></div>
       <div id="provider-config" class="provider-config">
         <label id="field-apiKey">API key <a id="key-link" target="_blank" rel="noopener">Get a key</a>
@@ -48,19 +48,13 @@
           <select id="model"></select>
         </label>
         <p id="model-hint" class="muted small">Automatic picks the newest fast model that answers and switches if one stops working.</p>
-        <label data-settings-only>Lines per request when analysing a video
-          <select id="batchSize">
-            <option value="5">5: first results sooner, more requests</option>
-            <option value="10">10 (recommended)</option>
-            <option value="20">20: fewer requests, slower first results</option>
-          </select>
-        </label>
       </div>
     </section>
 
     <section class="panel" data-step="1">
-      <h2>Backup AI <span class="muted small">(optional)</span></h2>
-      <p class="muted">Used while your main AI is out of its free limit or not answering. The main AI is used again once it recovers. Leave it on <b>None</b> to skip; you can add one later in Settings.</p>
+      <details id="backup-box">
+      <summary><h2>Backup AI <span class="muted small">(optional)</span></h2></summary>
+      <p class="muted">Used while your main AI is at its usage limit or not answering. The main AI is used again once it recovers.</p>
       <label>Backup AI<select id="backup-provider"></select></label>
       <div id="backup-config">
         <label id="backup-key-field">API key <a id="backup-key-link" target="_blank" rel="noopener">Get a key</a>
@@ -72,11 +66,12 @@
           <span id="backup-status" class="status"></span>
         </div>
       </div>
+      </details>
     </section>
 
     <section class="panel" data-step="2">
       <h2>Your level</h2>
-      <p class="muted">This decides which words are highlighted in the transcript and in Prepare. You can change it any time with <b>−</b> / <b>+</b> in Prepare. Words you mark with “I know this” or <kbd>S</kbd> are never highlighted again.</p>
+      <p class="muted">This decides which words are highlighted in the transcript and in Prepare. You can change it any time with <b>−</b> / <b>+</b> at the top of the side panel. Words you mark with “I know it” are never highlighted again.</p>
       <div id="levels" class="levels"></div>
       <details id="self-check-box">
         <summary>Not sure? Take a 30-second check</summary>
@@ -123,6 +118,7 @@
             <label>AnkiConnect address<input id="ankiUrl" type="url" spellcheck="false"></label>
             <label>AnkiConnect API key<input id="ankiKey" type="password" autocomplete="off"></label>
           </div>
+          <label class="check"><input id="ankiSync" type="checkbox"> Sync Anki with AnkiWeb after cards are sent (needs an AnkiWeb account signed in inside Anki)</label>
         </details>
         <div class="row">
           <button id="anki-connect">Connect to Anki</button>
@@ -150,6 +146,7 @@
     <footer>
       <button id="back" hidden>Back</button>
       <span id="saved" class="muted"></span>
+      <span id="version" class="muted small"></span>
       <span><button id="skip" class="link" hidden>Skip for now</button> <button id="next" class="primary" hidden>Next</button></span>
     </footer>
   </main>

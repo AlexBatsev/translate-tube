@@ -1,22 +1,30 @@
 // Settings and learner data live in chrome.storage.local (never synced,
 // because they contain API keys).
 
+import { LANGUAGES } from './languages.js';
+
+// First guess for the language pair: translate into the browser's language.
+function defaultLanguages() {
+  const ui = (globalThis.chrome?.i18n?.getUILanguage?.() ?? 'en').toLowerCase().split('-')[0];
+  const nativeLang = LANGUAGES.some((l) => l.code === ui) ? ui : 'en';
+  return { learningLang: nativeLang === 'en' ? 'es' : 'en', nativeLang };
+}
+
 export const DEFAULT_SETTINGS = {
   setupDone: false,
-  learningLang: 'en',
-  nativeLang: 'uk',
+  ...defaultLanguages(),
   provider: 'gemini',
   // Optional second AI used while the main one is out of limits ('' = none).
   backupProvider: '',
   providers: {
-    // model '' = Automatic. autoModel / models / modelStatus are filled in at runtime.
+    // model '' = Automatic.
     gemini: { apiKey: '', model: '' },
     claude: { apiKey: '', model: '' },
     openai: { apiKey: '', model: '' },
     openrouter: { apiKey: '', model: '' },
     ollama: { host: 'http://localhost:11434', model: '' }
   },
-  // 1 (beginner) .. 6 (near native). Shown to the user in plain words.
+  // 1 (beginner) .. 5 (advanced). Shown to the user in plain words.
   level: 3,
   anki: {
     // null = not decided yet, true = use Anki, false = no Anki (export only).
@@ -25,14 +33,16 @@ export const DEFAULT_SETTINGS = {
     connected: false,
     url: 'http://127.0.0.1:8765',
     deck: 'Translate Tube',
-    key: ''
+    key: '',
+    // Ask Anki to sync with AnkiWeb after cards are sent.
+    syncAfterSend: false,
+    // Version and language of the card template last written to Anki.
+    template: ''
   },
   pauseOnClick: true,
   resumeOnClose: true,
   // Translation line under transcript sentences: 'off' | 'current' | 'all'.
-  showSentenceTranslation: 'off',
-  // Lines per AI request when analysing a transcript.
-  batchSize: 10
+  showSentenceTranslation: 'off'
 };
 
 const PROVIDER_IDS = ['gemini', 'claude', 'openai', 'openrouter', 'ollama'];
@@ -42,8 +52,7 @@ export const LEVELS = [
   { value: 2, label: 'Basic', hint: 'Simple conversations and slow videos.' },
   { value: 3, label: 'Getting comfortable', hint: 'I follow easy videos but miss many words.' },
   { value: 4, label: 'Confident', hint: 'I follow most videos; slang and fast speech are hard.' },
-  { value: 5, label: 'Advanced', hint: 'Only rare words, idioms and wordplay trip me up.' },
-  { value: 6, label: 'Near native', hint: 'Show me only genuinely rare words.' }
+  { value: 5, label: 'Advanced', hint: 'Show me only genuinely rare words.' }
 ];
 
 function merge(base, extra) {
@@ -63,6 +72,7 @@ export async function getSettings() {
   if (s.backupProvider && !PROVIDER_IDS.includes(s.backupProvider)) s.backupProvider = '';
   if (s.showSentenceTranslation === true) s.showSentenceTranslation = 'all';
   if (s.showSentenceTranslation === false) s.showSentenceTranslation = 'off';
+  s.level = Math.min(LEVELS.length, Math.max(1, Math.round(Number(s.level)) || 3));
   return s;
 }
 
@@ -73,8 +83,23 @@ export async function saveSettings(patch) {
   return next;
 }
 
+// What the extension learned about each AI service while running: its model
+// list, the model Automatic mode uses now, and which models worked or failed.
+// Kept apart from the settings so it never competes with the user's edits.
+export async function getAiState(providerId) {
+  const { aiState = {} } = await chrome.storage.local.get('aiState');
+  return providerId ? aiState[providerId] ?? {} : aiState;
+}
+
+export async function updateAiState(providerId, patch) {
+  const aiState = await getAiState();
+  aiState[providerId] = patch === null ? {} : { ...aiState[providerId], ...patch };
+  await chrome.storage.local.set({ aiState });
+  return aiState[providerId];
+}
+
 // Word lists: "known" words are never highlighted; "deck" words are words
-// already sent to Anki (highlighted in a softer style for reinforcement).
+// in the Anki cards (shown in a softer style and no longer offered as new).
 export async function getWordSets() {
   const { knownWords = [], deckWords = [] } = await chrome.storage.local.get(['knownWords', 'deckWords']);
   return { known: new Set(knownWords), deck: new Set(deckWords) };

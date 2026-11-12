@@ -1,10 +1,11 @@
 // Side panel shell: tabs, video tracking, transcript loading and analysis.
 import { $, state, on, emit, bg, toTab, toast, escapeHtml, fmtTime } from './core.js';
 import { getSettings, getWordSets, undoKnown, getHistory, rememberVideo, videoUrl } from '../lib/storage.js';
-import { parseJson3, buildSentences, sentenceAt } from '../lib/transcript.js';
+import { parseJson3, buildSentences } from '../lib/transcript.js';
 import { TranscriptAnalysis } from '../lib/analysis.js';
 import { getDrafts } from '../lib/drafts.js';
-import { renderTranscript, refreshLines, updateActive, renderAnalysisState, setTranscriptStatus, hidePopover } from './transcript-view.js';
+import { renderTranscript, refreshLines, updateActive, renderAnalysisState, setTranscriptStatus, hidePopover, tickLoop } from './transcript-view.js';
+import './level.js';
 import { resetPrep, render as renderPrep } from './prepare.js';
 import { renderCards, refreshCount } from './cards.js';
 
@@ -45,7 +46,7 @@ document.addEventListener('click', (e) => {
 // ?tabId=N pins the panel to one tab (used when opening the panel page in a
 // normal tab for debugging and automated tests).
 const pinnedTabId = Number(new URLSearchParams(location.search).get('tabId')) || null;
-const YOUTUBE = /^https:\/\/(www|m)\.youtube\.com\//;
+const YOUTUBE = /^https:\/\/www\.youtube\.com\//;
 
 async function findTab() {
   if (pinnedTabId) {
@@ -83,6 +84,8 @@ async function poll() {
     state.title = info.title;
     $('video-title').textContent = info.title;
   }
+  state.analysis?.setPosition(info.ms);
+  tickLoop();
   updateActive();
   saveProgress();
 }
@@ -261,7 +264,7 @@ function startAnalysis() {
     settings: state.settings,
     videoId: state.videoId,
     sentences: state.sentences,
-    startId: Math.max(0, sentenceAt(state.sentences, state.ms)),
+    ms: state.ms,
     // Coalesce progress updates into one repaint per frame.
     onUpdate: (ids) => {
       const first = !pending;
@@ -354,10 +357,11 @@ chrome.storage.onChanged.addListener(async (changes) => {
   renderPrep();
   updateUndo();
   if (!state.settings.setupDone) {
-    setTranscriptStatus('Finish the <button class="link" data-action="open-setup">quick setup</button> first (about 2 minutes).');
+    setTranscriptStatus('Finish the <button class="link" data-action="open-setup">quick setup</button> first.');
   }
   await findTab();
   refreshCount();
+  bg('bg:ankiWords').catch(() => {}); // cards made in Anki since last time
   setInterval(poll, 250);
   poll();
 })();

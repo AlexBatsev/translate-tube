@@ -1,4 +1,4 @@
-import { getSettings, saveSettings, addWords, removeWords, LEVELS, BACKUP_KEYS } from '../lib/storage.js';
+import { getSettings, saveSettings, addWords, removeWords, getAiState, updateAiState, LEVELS, BACKUP_KEYS } from '../lib/storage.js';
 import { LANGUAGES } from '../lib/languages.js';
 import { PROVIDERS, getProvider, rankModels } from '../lib/providers/index.js';
 import { testProvider, loadModels } from '../lib/ai.js';
@@ -71,12 +71,14 @@ function providerCfg() {
   return settings.providers[settings.provider] ?? {};
 }
 
-function renderModels() {
+async function renderModels() {
   const p = getProvider(settings.provider);
   const cfg = providerCfg();
-  const mark = (m) => ({ ok: ' ✓', fail: ' ✗', retired: ' ✗ retired' })[cfg.modelStatus?.[m]] ?? '';
-  const auto = `Automatic (recommended)${cfg.autoModel ? ` · now ${cfg.autoModel}` : ''}`;
-  const models = cfg.models?.length ? rankModels(p, cfg.models) : [];
+  const known = await getAiState(p.id);
+  if (p.id !== settings.provider) return; // the user picked another one meanwhile
+  const mark = (m) => ({ ok: ' ✓', fail: ' ✗', retired: ' ✗ retired' })[known.modelStatus?.[m]] ?? '';
+  const auto = `Automatic (recommended)${known.autoModel ? ` · now ${known.autoModel}` : ''}`;
+  const models = known.models?.length ? rankModels(p, known.models) : [];
   if (cfg.model && !models.includes(cfg.model)) models.unshift(cfg.model);
   $('model').innerHTML =
     `<option value="">${auto}</option>` +
@@ -110,7 +112,8 @@ async function saveProviderField(field, value) {
 // A new key or address may see different models: forget what we learned.
 async function saveConnection(field, value) {
   if ((providerCfg()[field] ?? '') === value) return;
-  await save({ providers: { [settings.provider]: { ...providerCfg(), [field]: value, models: [], autoModel: '', modelStatus: {} } } });
+  await save({ providers: { [settings.provider]: { ...providerCfg(), [field]: value } } });
+  await updateAiState(settings.provider, null);
   renderModels();
 }
 
@@ -159,7 +162,7 @@ $('test-provider').addEventListener('click', async () => {
     renderModels();
     let msg = e.message;
     if (e.timeout) msg += ' The model may be overloaded. Try again, or choose another model.';
-    if (p.id === 'ollama' && /403|reach/.test(msg)) msg += ' Start Ollama with OLLAMA_ORIGINS=chrome-extension://* set.';
+    if (p.id === 'ollama' && /reach/.test(msg)) msg += ' Is Ollama running?';
     status(el, msg, 'err');
   } finally {
     clearInterval(timer);
@@ -196,7 +199,7 @@ $('self-check').addEventListener('click', (e) => {
 });
 $('self-check-done').addEventListener('click', async () => {
   const bands = SELF_CHECK[settings.learningLang];
-  const level = levelFromCheck(bands, picked);
+  const level = Math.min(LEVELS.length, levelFromCheck(bands, picked));
   await save({ level });
   // Words they ticked from the harder bands count as known.
   await addWords('knownWords', [...picked]);
@@ -324,6 +327,7 @@ async function connectAnki() {
       status($('anki-live'), '');
       status($('anki-status'), `Connected (AnkiConnect v${r.result}). Cards go to the deck “${settings.anki.deck}”.`, 'ok');
       chrome.runtime.sendMessage({ type: 'bg:flush' });
+      chrome.runtime.sendMessage({ type: 'bg:ankiWords' });
     } else {
       const msg = r?.error ?? 'Could not reach Anki.';
       status($('anki-status'), /not running/i.test(msg) ? 'Anki is not answering. Check steps 1–3 above, then try again.' : msg, 'err');
@@ -339,6 +343,8 @@ function fillAnki() {
   $('ankiUrl').value = settings.anki.url;
   $('ankiKey').value = settings.anki.key;
   for (const id of ['deck', 'ankiUrl', 'ankiKey']) $(id).addEventListener('change', () => saveAnki());
+  $('ankiSync').checked = settings.anki.syncAfterSend;
+  $('ankiSync').addEventListener('change', () => save({ anki: { syncAfterSend: $('ankiSync').checked } }));
   $('anki-connect').addEventListener('click', connectAnki);
   $('anki-use').addEventListener('change', async (e) => {
     await saveAnki({ enabled: e.target.value === 'yes' });
@@ -383,7 +389,8 @@ async function saveBackupConnection() {
   if (p.fields.includes('apiKey')) patch.apiKey = $('backup-key').value.trim();
   if (p.fields.includes('host')) patch.host = $('backup-host').value.trim();
   if (Object.entries(patch).every(([k, v]) => (cfg[k] ?? '') === v)) return;
-  await save({ providers: { [id]: { ...cfg, ...patch, models: [], autoModel: '', modelStatus: {} } } });
+  await save({ providers: { [id]: { ...cfg, ...patch } } });
+  await updateAiState(id, null);
 }
 
 $('backup-provider').addEventListener('change', async () => {
@@ -460,11 +467,8 @@ function updateNav() {
   $('saved').textContent = noTest ? 'Press Test to continue' : '';
 }
 
-// A talk with good English subtitles, for a first try.
-const SAMPLE_VIDEO = 'https://www.youtube.com/watch?v=arj7oStGLkU';
-
 function setupWizard() {
-  $('subtitle').textContent = 'Quick setup · about 2 minutes';
+  $('subtitle').textContent = 'Quick setup';
   $('steps').hidden = false;
   document.querySelectorAll('[data-settings-only]').forEach((s) => (s.hidden = true));
   $('next').hidden = false;
@@ -475,8 +479,7 @@ function setupWizard() {
     await save({ setupDone: true });
     document.querySelector('main').innerHTML = `<header><img src="../icons/icon48.png" width="40" height="40" alt=""><div><h1>All set!</h1></div></header>
       <section class="panel"><p>Open a YouTube video and click the Translate Tube icon in the toolbar (or press <kbd>Alt</kbd>+<kbd>T</kbd>). The side panel shows the transcript next to the video.</p>
-      <p>Tip: pin the extension (puzzle icon → pin) so the button is always visible.</p>
-      <p><a class="button primary" href="${SAMPLE_VIDEO}" target="_blank" rel="noopener">Try it on a sample video</a></p>
+      <p>Tip: pin the extension (puzzle icon → pin) so the button is always visible. The panel is hidden in full screen; theater mode (<kbd>T</kbd> on the video) keeps it next to a large video.</p>
       <p class="muted">You can change everything later in Settings (⚙ in the side panel).</p></section>`;
   });
   showStep(0);
@@ -491,8 +494,8 @@ function setupWizard() {
   updateKnownCount();
   fillAnki();
   renderBackup();
-  $('batchSize').value = String(settings.batchSize);
-  $('batchSize').addEventListener('change', () => save({ batchSize: Number($('batchSize').value) }));
+  $('backup-box').open = !wizard || !!settings.backupProvider;
+  $('version').textContent = `Translate Tube ${chrome.runtime.getManifest().version}`;
   for (const id of ['pauseOnClick', 'resumeOnClose']) {
     $(id).checked = settings[id];
     $(id).addEventListener('change', () => save({ [id]: $(id).checked }));
