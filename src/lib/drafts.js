@@ -36,7 +36,7 @@ export async function addDraft(item, { sentence, sentenceTranslation, videoId, v
   if (drafts.some((d) => sameCard(d, draft))) return { added: false, count: drafts.length };
   drafts.push(draft);
   await setDrafts(drafts);
-  return { added: true, count: drafts.length };
+  return { added: true, count: drafts.length, id: draft.id };
 }
 
 export async function updateDraft(id, patch) {
@@ -45,6 +45,16 @@ export async function updateDraft(id, patch) {
   if (d) Object.assign(d, patch);
   await setDrafts(drafts);
   return d;
+}
+
+// Puts a memory note that arrived later into a draft that still has none.
+export async function fillNote(id, note) {
+  const drafts = await getDrafts();
+  const d = drafts.find((x) => x.id === id);
+  if (!d || d.note || !note) return false;
+  d.note = note;
+  await setDrafts(drafts);
+  return true;
 }
 
 export async function removeDrafts(ids) {

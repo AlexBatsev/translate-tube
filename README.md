@@ -4,26 +4,25 @@ Learn a language from the YouTube videos you already watch.
 
 Translate Tube is a free, open-source Chrome / Edge extension. It opens a side panel next to the video (never on top of it) with:
 
-- **Transcript** – the subtitles as a scrolling text. The sentence being spoken is highlighted, with the lines before and after it. The whole transcript is analysed once when a video opens, so words that are hard for your level are underlined right away, and you can show a translation under the current line or under every line. Works for regular videos and Shorts (if they have subtitles). Click an underlined word for its meaning at once; click any other word (or drag over a phrase) to get a translation **in this context**. Idioms and phrasal verbs are treated as one unit, with each word explained too.
-- **Prepare** – go through the hard sentences *before* watching, from where the video is now to the end. The keyboard does the rest:
+- **Transcript** – the subtitles as a scrolling text. The sentence being spoken is highlighted, with the lines before and after it. The next few minutes of the video are analysed as you watch, so words that are hard for your level are underlined before they are spoken, and you can show a translation under the current line or under every line. Words already in your Anki cards are marked instead of offered again. Works for regular videos and Shorts (if they have subtitles). Click an underlined word for its meaning at once; click any other word (or drag over a phrase) to get a translation **in this context**. Idioms and phrasal verbs are treated as one unit, with each word explained too. From the keyboard: <kbd>←</kbd> / <kbd>→</kbd> previous / next line, <kbd>R</kbd> replay the line, <kbd>L</kbd> repeat it until you stop.
+- **Prepare** – go through the hard sentences *before* watching, from where the video is now, for as long as you like. Only the sentences you reach are analysed. The keyboard does the rest:
 
   | Key | Action |
   | --- | --- |
   | <kbd>Space</kbd> | show / hide the sentence translation |
-  | <kbd>Tab</kbd> | next highlighted word in this sentence |
   | <kbd>A</kbd> | add the word to your cards |
   | <kbd>S</kbd> | I know it (never highlighted again; the ↶ button at the top undoes the last ones, one by one) |
   | <kbd>Enter</kbd> | next highlighted word, then the next sentence |
   | <kbd>Backspace</kbd> | back to the previous sentence |
-  | <kbd>−</kbd> / <kbd>+</kbd> | lower / raise your level: more / fewer highlighted words |
+  | <kbd>−</kbd> / <kbd>+</kbd> | lower / raise your level: more / fewer highlighted words (also the buttons at the top) |
   | <kbd>U</kbd> | undo the last “I know it” (also the ↶ button at the top) |
   | <kbd>P</kbd> | play this sentence in the video |
   | click | look up any other word |
 
 - **Recent videos** – the 🕘 button lists videos you opened with the panel; click one to continue where you stopped.
-- **Cards** – words you add wait in a review list, grouped by video and kept until you send them. Fix a word or translation, tick single words of a phrase to get a card for each, then send everything to [Anki](https://apps.ankiweb.net). Each card has the word in dictionary form, its translation, a memory note, the original sentence and a link back to the exact moment in the video. If Anki is closed, cards wait in the extension and are sent automatically later.
+- **Cards** – words you add wait in a review list, grouped by video and kept until you send them. Fix a word or translation, tick single words of a phrase to get a card for each, then send everything to [Anki](https://apps.ankiweb.net). Each card has the word in dictionary form (spoken aloud by Anki), its translation, a memory note, the original sentence and a link back to the exact moment in the video. If Anki is closed, cards wait in the extension and are sent automatically later.
 
-There is no server: everything runs in your browser, with your own AI key.
+There is no server: everything runs in your browser, with the AI service you choose.
 
 ## AI providers
 
@@ -35,11 +34,11 @@ Pick one in Settings, paste a key, press **Test**. The model is chosen automatic
 | Anthropic Claude | paid API | Key from [console.anthropic.com](https://console.anthropic.com/settings/keys) |
 | OpenAI | paid API | Key from [platform.openai.com](https://platform.openai.com/api-keys) |
 | OpenRouter | pay per use, some free models | One key for models from many companies, managed on [openrouter.ai](https://openrouter.ai/settings/keys) |
-| Ollama | free, local | Runs on your computer. Start Ollama with `OLLAMA_ORIGINS=chrome-extension://*` |
+| Ollama | free, local | Runs on your computer. No key and no settings: install it, pull a model, press **Test** |
 
 Keys are stored only in `chrome.storage.local` on your computer and are sent only to the provider you chose.
 
-Optionally add a **Backup AI** in Settings. It answers while the main one is out of its free limit or not responding; the main one is used again once it recovers.
+Optionally add a **Backup AI** in Settings. It answers while the main one is at its usage limit or not responding; the main one is used again once it recovers.
 
 ## Install
 
@@ -62,6 +61,7 @@ npm install      # dev tools only (ESLint)
 npm test         # unit tests (node --test)
 npm run lint
 npm run build    # dist/translate-tube-<version>.zip
+npm run e2e      # optional: the whole flow in Chromium (needs Playwright)
 ```
 
 Load the repository folder itself with **Load unpacked** while developing; press the reload button on `chrome://extensions` after changes.
@@ -75,11 +75,12 @@ src/sidepanel/             Transcript, Prepare and Cards tabs
 src/options/               settings + first-run wizard
 src/lib/providers/         one small module per AI provider
 src/lib/ai.js              prompts (contextual explanation, hard-word analysis)
+src/lib/analysis.js        analyses the transcript a few minutes ahead of the video
 src/lib/anki.js            AnkiConnect client + offline queue
 src/anki/                  the Anki card template
 ```
 
-**Adding an AI provider:** copy one of `src/lib/providers/*.js`, implement `listModels` and `complete` (or `translate`), add its host to `host_permissions` in `manifest.json`, and list it in `src/lib/providers/index.js`.
+**Adding an AI provider:** copy one of `src/lib/providers/*.js`, implement `listModels` and `complete`, add its host to `host_permissions` in `manifest.json`, and list it in `src/lib/providers/index.js`.
 
 **Releasing:** bump `version` in both `manifest.json` and `package.json`, merge, then push a tag `vX.Y.Z`. The release workflow builds the zip and attaches it to a GitHub release.
 
