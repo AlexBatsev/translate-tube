@@ -1,6 +1,6 @@
 import { getProvider, rankModels } from './providers/index.js';
 import { languageName } from './languages.js';
-import { LEVELS, getSettings, saveSettings } from './storage.js';
+import { LEVELS, getAiState, updateAiState } from './storage.js';
 
 export function parseJsonLoose(text) {
   const cleaned = String(text).replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/, '').trim();
@@ -35,7 +35,7 @@ function system(settings) {
 
 // ---- running a prompt, with Automatic model choice ----
 
-const TIMEOUT = { explain: 25000, analyze: 90000, test: 25000 };
+const TIMEOUT = { explain: 25000, analyze: 90000, test: 25000, note: 20000 };
 
 export class BadAnswerError extends Error {}
 
@@ -95,23 +95,17 @@ export function needsKey(settings) {
   return provider.fields.includes('apiKey') && !cfg.apiKey;
 }
 
-async function updateProviderCfg(providerId, patch) {
-  const s = await getSettings();
-  await saveSettings({ providers: { [providerId]: { ...s.providers[providerId], ...patch } } });
-}
-
 async function markModel(providerId, model, mark) {
-  const s = await getSettings();
-  const status = s.providers[providerId]?.modelStatus ?? {};
+  const status = (await getAiState(providerId)).modelStatus ?? {};
   if (status[model] === mark || status[model] === 'retired') return;
-  await updateProviderCfg(providerId, { modelStatus: { ...status, [model]: mark } });
+  await updateAiState(providerId, { modelStatus: { ...status, [model]: mark } });
 }
 
 export async function loadModels(settings) {
   const provider = getProvider(settings.provider);
   const cfg = settings.providers[provider.id] ?? {};
   const models = await provider.listModels(cfg);
-  await updateProviderCfg(provider.id, { models });
+  await updateAiState(provider.id, { models });
   return models;
 }
 
@@ -170,19 +164,20 @@ async function runOne(settings, req, { maxTries = 4, onAttempt } = {}) {
       throw e;
     }
   }
-  let models = cfg.models;
+  const known = await getAiState(provider.id);
+  let models = known.models;
   if (!models?.length) models = await loadModels(settings);
-  const status = cfg.modelStatus ?? {};
+  const status = known.modelStatus ?? {};
   const ranked = rankModels(provider, models).filter((m) => status[m] !== 'retired');
-  if (!ranked.length) throw new AiError('No usable models found for this key. Check it in Settings.', 'key');
-  const order = ranked.includes(cfg.autoModel) ? [cfg.autoModel, ...ranked.filter((m) => m !== cfg.autoModel)] : ranked;
+  if (!ranked.length) throw new AiError('No usable models found. Check the AI in Settings.', 'key');
+  const order = ranked.includes(known.autoModel) ? [known.autoModel, ...ranked.filter((m) => m !== known.autoModel)] : ranked;
   const tried = [];
   let limited = 0;
   for (const model of order.slice(0, maxTries)) {
     onAttempt?.(model);
     try {
       const text = await provider.complete({ ...cfg, model }, req);
-      if (model !== cfg.autoModel) await updateProviderCfg(provider.id, { autoModel: model });
+      if (model !== known.autoModel) await updateAiState(provider.id, { autoModel: model });
       await markModel(provider.id, model, 'ok');
       return { text, model };
     } catch (e) {
@@ -197,7 +192,7 @@ async function runOne(settings, req, { maxTries = 4, onAttempt } = {}) {
   }
   const kind = limited && limited === tried.length ? 'limit' : 'busy';
   throw new AiError(
-    kind === 'limit' ? `The free limit of your ${provider.name} key is used up for now (${tried.join(', ')}).` : `No model answered (${tried.join(', ')}). Try again in a minute.`,
+    kind === 'limit' ? `${provider.name} has reached its usage limit for now (${tried.join(', ')}).` : `No model answered (${tried.join(', ')}). Try again in a minute.`,
     kind
   );
 }
@@ -218,11 +213,14 @@ const DIFFICULTY = [
 
 const QUOTES = 'Inside JSON string values never use the " character; use « » or \' instead.';
 
-const ITEM_SHAPE =
+// Analysing a transcript leaves the memory note out: it is the longest part
+// of an answer, and only the few words the learner opens or adds need one.
+const itemShape = (withNote) =>
   '{"text": exact words as they appear in the sentence, "lemma": dictionary form of the whole expression (e.g. "blew it" -> "blow it"), ' +
   `"kind": one of ${KINDS}, "level": difficulty 1-6, ` +
-  '"translation": general dictionary translation of the lemma, without names or details from this sentence (e.g. "помститися комусь за щось", not "помститися Трампу"), ' +
-  '"note": memory note, "inTranslation": the exact words of the sentence translation that translate it, ' +
+  '"translation": general dictionary translation of the lemma, without names or details from this sentence (for "got back at Tom", translate "get back at someone" and leave Tom out), ' +
+  (withNote ? '"note": memory note, ' : '') +
+  '"inTranslation": the exact words of the sentence translation that translate it, ' +
   '"parts": for multi-word items only, each meaningful word with its own translation: [{"text": word, "translation": string}]}';
 
 export function buildExplainPrompt({ term, sentence, previous }) {
@@ -234,7 +232,7 @@ export function buildExplainPrompt({ term, sentence, previous }) {
     'If the term is part of a larger idiom or phrasal verb in this sentence, explain the whole expression and put it in "text".',
     DIFFICULTY,
     QUOTES,
-    `Return: {"item": ${ITEM_SHAPE}, "sentenceTranslation": translation of the sentence}`
+    `Return: {"item": ${itemShape(true)}, "sentenceTranslation": translation of the sentence}`
   ].filter(Boolean).join('\n');
 }
 
@@ -269,6 +267,22 @@ export async function explainTerm(settings, { term, sentence, previous }) {
   return { item, sentenceTranslation: String(out.sentenceTranslation || '') };
 }
 
+export function buildNotePrompt({ lemma, translation, sentence }) {
+  return [
+    `Sentence: "${sentence}"`,
+    `Expression: "${lemma}"${translation ? ` (${translation})` : ''}`,
+    QUOTES,
+    'Return: {"note": memory note for this expression}'
+  ].join('\n');
+}
+
+// The memory note for one analysed item. Returns '' when the AI gives none.
+export async function noteFor(settings, { lemma, translation, sentence }) {
+  const req = { system: system(settings), prompt: buildNotePrompt({ lemma, translation, sentence }), json: true, timeoutMs: TIMEOUT.note };
+  const out = parseJsonStrict((await run(settings, req, { maxTries: 2 })).text);
+  return String(out.note || '').trim();
+}
+
 export function buildAnalyzePrompt(sentences) {
   return [
     'These are consecutive subtitle lines from one video. For each line: translate it, and list every word or expression of difficulty 2 or higher.',
@@ -279,7 +293,7 @@ export function buildAnalyzePrompt(sentences) {
     'Lines:',
     ...sentences.map((s) => `${s.id}: ${s.text}`),
     '',
-    `Return: {"sentences": [{"id": number, "translation": string, "items": [${ITEM_SHAPE}]}]}`
+    `Return: {"sentences": [{"id": number, "translation": string, "items": [${itemShape(false)}]}]}`
   ].join('\n');
 }
 
@@ -302,7 +316,7 @@ export async function analyzeSentences(settings, sentences, { signal } = {}) {
     return {
       id: s.id,
       translation: String(r.translation ?? ''),
-      items: (r.items ?? r.hard ?? []).map((h) => normalizeItem(h, s.text)).filter(Boolean)
+      items: (r.items ?? []).map((h) => normalizeItem(h, s.text)).filter(Boolean)
     };
   });
   return { results, model };

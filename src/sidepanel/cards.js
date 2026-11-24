@@ -1,5 +1,6 @@
 // Cards tab: review list (edit, tick words, delete), then send to Anki.
 import { $, state, on, toast, bg, escapeHtml } from './core.js';
+import { pendingNotes } from './transcript-view.js';
 import { getDrafts, updateDraft, removeDrafts, restoreDrafts, draftToCards, groupByVideo } from '../lib/drafts.js';
 import { explainTerm } from '../lib/ai.js';
 import { cardsToTsv, videoLink, buildCard } from '../lib/card.js';
@@ -21,7 +22,7 @@ function draftHtml(d) {
     <div class="d-status"></div>
     ${parts}
     <details><summary>Note and sentence</summary>
-      <textarea class="d-note" rows="2">${escapeHtml(d.note)}</textarea>
+      <textarea class="d-note" rows="2" placeholder="Memory note">${escapeHtml(d.note)}</textarea>
       <div class="d-sent">${escapeHtml(d.sentence)}</div>
     </details>
   </div>`;
@@ -187,10 +188,12 @@ $('cards-queue').addEventListener('click', async (e) => {
 $('send-cards').addEventListener('click', async () => {
   document.activeElement?.blur?.();
   await saving;
+  $('send-cards').disabled = true;
+  // Notes for words added a moment ago may still be on their way.
+  if (pendingNotes.size) await Promise.race([Promise.allSettled([...pendingNotes]), new Promise((r) => setTimeout(r, 4000))]);
   const drafts = await getDrafts();
   const cards = drafts.flatMap(draftToCards);
-  if (!cards.length) return;
-  $('send-cards').disabled = true;
+  if (!cards.length) return renderCards();
   try {
     const r = await bg('bg:sendCards', { cards });
     await removeDrafts(drafts.map((d) => d.id));
@@ -217,8 +220,11 @@ async function exportCards(which) {
     toast({ all: 'No cards sent yet.', waiting: 'No cards are waiting for Anki.', drafts: 'No cards to review.' }[which]);
     return;
   }
-  const url = `data:text/tab-separated-values;charset=utf-8,${encodeURIComponent(cardsToTsv(cards, state.settings.anki.deck))}`;
-  await chrome.downloads.download({ url, filename: `translate-tube-${which}-${new Date().toISOString().slice(0, 10)}.txt`, saveAs: true });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([cardsToTsv(cards, state.settings.anki.deck)], { type: 'text/tab-separated-values' }));
+  a.download = `translate-tube-${which}-${new Date().toISOString().slice(0, 10)}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   document.querySelector('.menu').open = false;
 }
 $('export-drafts').addEventListener('click', () => exportCards('drafts'));

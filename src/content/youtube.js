@@ -171,6 +171,13 @@
         v?.pause();
         sendResponse(info());
         return false;
+      case 'tt:toggle':
+        if (v) {
+          if (v.paused) v.play();
+          else v.pause();
+        }
+        sendResponse(info());
+        return false;
       case 'tt:play':
         v?.play();
         sendResponse(info());

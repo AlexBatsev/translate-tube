@@ -1,11 +1,11 @@
 // Prepare tab: go through the hard sentences before watching.
 import { $, state, on, emit, fmtTime, toTab, escapeHtml, sentenceHtml, highlightPhrases, itemHtml } from './core.js';
 import { explainTerm } from '../lib/ai.js';
-import { saveSettings, LEVELS } from '../lib/storage.js';
 import { visibleItems } from '../lib/analysis.js';
 import { sentenceAt } from '../lib/transcript.js';
 import { getDrafts } from '../lib/drafts.js';
 import { addItemAsDraft, knowWords, analysisText } from './transcript-view.js';
+import { levelLabel, changeLevel } from './level.js';
 
 const prep = {
   started: false,
@@ -44,17 +44,13 @@ export function updateStartScreen() {
   $('prep-over').hidden = from === 0;
 }
 
-export function prepActive() {
-  return prep.started;
-}
-
 function setStatus(html) {
   $('prep-status').innerHTML = html;
 }
 
 function items(id = prep.idx) {
   const r = state.analysis?.results.get(id);
-  return [...visibleItems(r?.items, state.settings.level, state.words.known), ...(id === prep.idx ? prep.extra : [])];
+  return [...visibleItems(r?.items, state.settings.level, state.words.known, state.words.deck), ...(id === prep.idx ? prep.extra : [])];
 }
 
 function addedSet(id = prep.idx) {
@@ -114,6 +110,18 @@ async function gotoSentence(idx, dir, { record = true } = {}) {
   prep.shown++;
   setStatus('');
   render();
+  lookAhead(idx);
+}
+
+// Prepare is analysed as the learner goes: only the lines that come next,
+// so stopping early costs nothing.
+function lookAhead(idx) {
+  const a = state.analysis;
+  for (let id = idx + 1; id < state.sentences.length; id++) {
+    if (a.results.has(id) || a.failed.has(id)) continue;
+    a.want(id);
+    break;
+  }
 }
 
 function renderLoading(idx) {
@@ -142,11 +150,10 @@ async function renderDone() {
   const drafts = (await getDrafts()).filter((d) => d.videoId === state.videoId);
   if (nav !== prep.nav) return;
   $('prep-pos').textContent = 'Done';
-  renderLevel();
   $('prep-prev').textContent = '';
   const nothing = prep.onlyHard && prep.shown === 0;
   $('prep-sentence').innerHTML = nothing
-    ? `No hard words ${prep.runStart > 0 ? 'in the rest of this video' : 'in this video'} at your level (${escapeHtml(levelLabel())}). Press <b>−</b> to lower the level and see more words.`
+    ? `No new hard words ${prep.runStart > 0 ? 'in the rest of this video' : 'in this video'} at your level (${escapeHtml(levelLabel())}). Press <b>−</b> to lower the level and see more words.`
     : 'You have prepared the whole video. Enjoy watching!';
   $('prep-translation').hidden = true;
   $('prep-word').innerHTML =
@@ -162,20 +169,10 @@ async function renderDone() {
   });
 }
 
-function levelLabel() {
-  return LEVELS.find((l) => l.value === Number(state.settings.level))?.label ?? '';
-}
-
-// Always shows the saved level, whatever screen Prepare is on.
-function renderLevel() {
-  const level = Number(state.settings.level);
-  $('lvl-label').textContent = `Level ${level} · ${levelLabel()}`;
-  $('lvl-down').disabled = level <= 1;
-  $('lvl-up').disabled = level >= 6;
-}
+let noteTimer = null;
 
 export function render() {
-  renderLevel();
+  clearTimeout(noteTimer);
   if (!prep.started || prep.idx >= state.sentences.length) return;
   const s = state.sentences[prep.idx];
   const r = state.analysis?.results.get(prep.idx);
@@ -191,31 +188,19 @@ export function render() {
   $('prep-word').innerHTML = cur
     ? itemHtml(cur, { counter: `${prep.wordIdx + 1}/${list.length}${added.has(cur.text) ? ' · added ✓' : ''}` })
     : '<div class="status">No hard words here. Click any word to look it up, or press Enter.</div>';
+  // The memory note is written once the learner stays on a word for a moment.
+  if (cur && !cur.note && state.analysis) {
+    noteTimer = setTimeout(() => {
+      state.analysis.note(cur, s.text).then((note) => {
+        if (note && prep.started && items()[prep.wordIdx] === cur) render();
+      });
+    }, 700);
+  }
 }
 
-// ---- level control ----
-
-// − lowers the level (more words highlighted), + raises it (fewer words).
-// Quick presses add up: each one starts from the level the last press asked for.
-let wantedLevel = null;
-async function changeLevel(delta) {
-  const from = wantedLevel ?? Number(state.settings.level);
-  const level = Math.max(1, Math.min(6, from + delta));
-  if (level === from) return;
-  wantedLevel = level;
-  $('lvl-label').textContent = `Level ${level} · ${LEVELS.find((l) => l.value === level).label}`;
-  await saveSettings({ level }); // storage listener re-renders everything
-}
-$('lvl-down').addEventListener('click', () => changeLevel(-1));
-$('lvl-up').addEventListener('click', () => changeLevel(+1));
-
-on('settings', () => {
-  if (Number(state.settings.level) === wantedLevel) wantedLevel = null;
-  renderLevel();
-});
+// ---- level and word changes ----
 
 on('level', () => {
-  renderLevel();
   if (!prep.started) return;
   if (prep.idx >= state.sentences.length) {
     // On the "done" screen: search this run again at the new level.
@@ -301,10 +286,8 @@ function back() {
 function key(k, shift = false) {
   if (!prep.started) return false;
   if (prep.idx >= state.sentences.length) {
-    if (k === 'Backspace') back();
-    else if (k === '-') changeLevel(-1);
-    else if (k === '+' || k === '=') changeLevel(+1);
-    else return false;
+    if (k !== 'Backspace') return false;
+    back();
     return true;
   }
   const list = items();
@@ -338,13 +321,6 @@ function key(k, shift = false) {
       return true;
     case 'Backspace':
       back();
-      return true;
-    case '-':
-      changeLevel(-1);
-      return true;
-    case '+':
-    case '=':
-      changeLevel(+1);
       return true;
     case 'p':
       toTab({ type: 'tt:seek', ms: s.start });

@@ -1,13 +1,18 @@
-// Analyses a whole transcript once: per sentence a translation and every
-// word/expression of difficulty 2+, with type, translation and breakdown.
-// Results are cached per video so filtering by level later is instant.
-import { analyzeSentences, BadAnswerError, errorKind, needsKey } from './ai.js';
+// Analyses a transcript a few minutes ahead of the viewer: per sentence a
+// translation and every word/expression of difficulty 2+, with type and
+// translation. Lines further away are analysed only when someone asks for
+// them (Prepare, or seeking in the video). Results are cached per video, so
+// filtering by level later is instant.
+import { analyzeSentences, noteFor, BadAnswerError, errorKind, needsKey } from './ai.js';
 import { getProvider } from './providers/index.js';
 import { normalizeWord } from './storage.js';
 
 export const BATCH_SIZE = 10;
+// How far ahead of the video position lines are analysed without being asked.
+export const WINDOW_MS = 5 * 60000;
 const CONCURRENCY = 2;
 const KEEP_VIDEOS = 30;
+const SAVE_DELAY_MS = 1500;
 
 export function makeBatches(count, size = BATCH_SIZE) {
   const out = [];
@@ -15,26 +20,31 @@ export function makeBatches(count, size = BATCH_SIZE) {
   return out;
 }
 
-// Batches starting with the one that holds `startId`, then the rest of the
-// video, then the part before it, so lines near the viewer come first.
-export function orderFrom(batches, startId) {
-  const i = batches.findIndex((b) => b.includes(startId));
-  return i > 0 ? [...batches.slice(i), ...batches.slice(0, i)] : batches;
+// True when any line of the batch plays between `ms` and `ms + windowMs`.
+export function inWindow(ids, sentences, ms, windowMs = WINDOW_MS) {
+  return ids.some((id) => sentences[id].end >= ms && sentences[id].start <= ms + windowMs);
 }
 
 const PAUSE_MS = { limit: 60000, busy: 20000 };
 const MISSING_TRIES = 2;
 
-// Items shown as "hard" for a learner level (1..6). Level 6 still shows the
-// rarest items, so the filter never becomes empty by definition.
+// Items shown as "hard" for a learner level (1..5): everything rated above it.
 export function isHardFor(item, level) {
-  return item.level > Math.min(Number(level) || 3, 5);
+  return item.level > Math.min(Math.max(Number(level) || 3, 1), 5);
 }
 
-export function visibleItems(items, level, known) {
-  return (items ?? []).filter(
-    (it) => isHardFor(it, level) && !known.has(normalizeWord(it.lemma)) && !known.has(normalizeWord(it.text))
-  );
+function inSet(item, set) {
+  return set.has(normalizeWord(item.lemma)) || set.has(normalizeWord(item.text));
+}
+
+// Already in the learner's cards (by dictionary form or as written).
+export function inDeck(item, deck) {
+  return inSet(item, deck);
+}
+
+// Items offered as new: hard for the level, not known, not in the cards yet.
+export function visibleItems(items, level, known, deck = new Set()) {
+  return (items ?? []).filter((it) => isHardFor(it, level) && !inSet(it, known) && !inSet(it, deck));
 }
 
 function cacheKey(videoId, from, to) {
@@ -50,18 +60,20 @@ async function rememberKey(key) {
 }
 
 export class TranscriptAnalysis {
-  constructor({ settings, videoId, sentences, onUpdate, startId = 0 }) {
+  constructor({ settings, videoId, sentences, onUpdate, ms = 0 }) {
     this.settings = settings;
     this.sentences = sentences;
-    this.startId = startId;
+    this.ms = ms; // where the video is now
     this.key = cacheKey(videoId, settings.learningLang, settings.nativeLang);
     this.onUpdate = onUpdate ?? (() => {});
     this.results = new Map(); // sentence id -> { translation, items }
     this.failed = new Map(); // sentence id -> error message
     this.missing = new Map(); // sentence id -> times the AI left it out
-    this.queue = []; // arrays of sentence ids waiting
+    this.queue = []; // arrays of sentence ids not analysed yet
+    this.asked = new Set(); // sentence ids someone asked for, wherever the video is
     this.running = 0;
     this.waiters = new Map(); // sentence id -> [resolve]
+    this.notes = new WeakMap(); // item -> promise of its memory note
     this.stopped = false;
     this.abort = new AbortController();
     // { kind: 'key' | 'limit' | 'busy', message, until? } while analysis is held up.
@@ -71,26 +83,15 @@ export class TranscriptAnalysis {
     this.model = '';
   }
 
-  get done() {
-    return this.results.size;
-  }
-
-  get total() {
-    return this.sentences.length;
-  }
-
   async start() {
     const cached = (await chrome.storage.local.get(this.key))[this.key];
     for (const r of cached?.results ?? []) this.results.set(r.id, r);
     this.model = cached?.model ?? '';
     await rememberKey(this.key);
-    const size = Number(this.settings.batchSize) || BATCH_SIZE;
-    this.queue = orderFrom(makeBatches(this.total, size), this.startId)
+    this.queue = makeBatches(this.sentences.length)
       .map((b) => b.filter((id) => !this.results.has(id)))
       .filter((b) => b.length);
-    if (this.queue.length && needsKey(this.settings)) {
-      this.hold({ kind: 'key', message: `Add your ${getProvider(this.settings.provider).name} key in Settings to see hard words and translations.` });
-    }
+    this.checkKey();
     this.onUpdate([]);
     this.pump();
   }
@@ -99,18 +100,57 @@ export class TranscriptAnalysis {
     this.stopped = true;
     this.abort.abort();
     clearTimeout(this.timer);
+    if (this.saveTimer) this.saveNow();
+  }
+
+  // Called as the video plays or the viewer seeks.
+  setPosition(ms) {
+    this.ms = ms;
+    this.pump();
+  }
+
+  // Asks for a line outside the window without waiting for it.
+  want(id) {
+    if (id < 0 || id >= this.sentences.length || this.results.has(id) || this.failed.has(id)) return;
+    this.asked.add(id);
+    this.pump();
   }
 
   // Resolves when the sentence is analysed, has failed, or analysis is held up
   // by a key problem.
   ensure(id) {
     if (this.results.has(id) || this.failed.has(id) || this.halted) return Promise.resolve();
-    // Move its batch to the front so the reader never waits long.
-    const i = this.queue.findIndex((b) => b.includes(id));
-    if (i > 0) this.queue.unshift(...this.queue.splice(i, 1));
-    return new Promise((resolve) => {
+    const done = new Promise((resolve) => {
       this.waiters.set(id, [...(this.waiters.get(id) ?? []), resolve]);
     });
+    this.want(id);
+    return done;
+  }
+
+  // The memory note of an analysed item, asked from the AI the first time
+  // it is needed. Resolves to '' when it cannot be had.
+  note(item, sentence) {
+    if (item.note) return Promise.resolve(item.note);
+    if (!this.notes.has(item)) {
+      this.notes.set(
+        item,
+        noteFor(this.settings, { lemma: item.lemma || item.text, translation: item.translation, sentence }).then(
+          (note) => {
+            item.note = note;
+            if (note) this.saveSoon();
+            return note;
+          },
+          () => ''
+        )
+      );
+    }
+    return this.notes.get(item);
+  }
+
+  checkKey() {
+    if (this.queue.length && needsKey(this.settings)) {
+      this.hold({ kind: 'key', message: `Add your ${getProvider(this.settings.provider).name} key in Settings to see hard words and translations.` });
+    }
   }
 
   // Retry button: failed lines go back in the queue and a held-up analysis resumes.
@@ -122,9 +162,7 @@ export class TranscriptAnalysis {
     this.halted = false;
     this.pausedUntil = 0;
     clearTimeout(this.timer);
-    if (this.queue.length && needsKey(this.settings)) {
-      this.hold({ kind: 'key', message: `Add your ${getProvider(this.settings.provider).name} key in Settings to see hard words and translations.` });
-    }
+    this.checkKey();
     this.onUpdate([]);
     this.pump();
   }
@@ -154,14 +192,25 @@ export class TranscriptAnalysis {
 
   settle(ids) {
     for (const id of ids) {
+      this.asked.delete(id);
       for (const resolve of this.waiters.get(id) ?? []) resolve();
       this.waiters.delete(id);
     }
   }
 
+  // The next batch worth analysing now: one that holds a line someone asked
+  // for, else the first one inside the window ahead of the video.
+  takeNext() {
+    let i = this.queue.findIndex((b) => b.some((id) => this.asked.has(id)));
+    if (i < 0) i = this.queue.findIndex((b) => inWindow(b, this.sentences, this.ms));
+    return i < 0 ? null : this.queue.splice(i, 1)[0];
+  }
+
   pump() {
-    while (!this.stopped && !this.halted && Date.now() >= this.pausedUntil && this.running < CONCURRENCY && this.queue.length) {
-      const ids = this.queue.shift();
+    while (!this.stopped && !this.halted && Date.now() >= this.pausedUntil && this.running < CONCURRENCY) {
+      const ids = this.takeNext();
+      if (!ids) break;
+      if (!this.running) this.onUpdate([]); // show that analysis is at work
       this.running++;
       this.runBatch(ids).finally(() => {
         this.running--;
@@ -171,8 +220,19 @@ export class TranscriptAnalysis {
     }
   }
 
-  async save() {
-    await chrome.storage.local.set({ [this.key]: { results: [...this.results.values()], model: this.model, at: Date.now() } });
+  // Saving rewrites the whole video, so a burst of results is saved once.
+  saveSoon() {
+    this.saveTimer ??= setTimeout(() => this.saveNow(), SAVE_DELAY_MS);
+  }
+
+  async saveNow() {
+    clearTimeout(this.saveTimer);
+    this.saveTimer = null;
+    try {
+      await chrome.storage.local.set({ [this.key]: { results: [...this.results.values()], model: this.model, at: Date.now() } });
+    } catch {
+      /* the results stay in memory for this session */
+    }
   }
 
   async runBatch(ids, attempt = 1) {
@@ -194,7 +254,7 @@ export class TranscriptAnalysis {
         else this.results.set(r.id, { id: r.id, translation: '', items: [] });
       }
       if (again.length) this.queue.unshift(again);
-      await this.save();
+      this.saveSoon();
       this.settle(ids.filter((id) => this.results.has(id)));
     } catch (e) {
       if (this.stopped || e.cancelled) return;

@@ -19,5 +19,9 @@ export default [
   {
     files: ['tests/**/*.js', 'scripts/**/*.js'],
     languageOptions: { globals: { ...globals.node } }
+  },
+  {
+    files: ['tests/e2e/**/*.mjs'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser, ...globals.webextensions } }
   }
 ];

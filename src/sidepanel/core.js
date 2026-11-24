@@ -2,6 +2,7 @@
 import { escapeHtml } from '../lib/card.js';
 import { tokenize, markHighlights, findPhrases } from '../lib/transcript.js';
 import { normalizeWord } from '../lib/storage.js';
+import { inDeck } from '../lib/analysis.js';
 
 export const $ = (id) => document.getElementById(id);
 
@@ -78,7 +79,7 @@ export { escapeHtml };
 // ---- rendering ----
 
 // Renders a sentence with item groups. Items before `strong` get the
-// highlight `style`; the rest are clickable but unstyled.
+// highlight `style`; the rest are clickable, and marked when already in the cards.
 export function sentenceHtml(text, items, { strong = items.length, style = 'hard', current = -1, added = new Set() } = {}) {
   const tokens = tokenize(text);
   const marks = markHighlights(tokens, items.map((it) => it.text));
@@ -89,7 +90,10 @@ export function sentenceHtml(text, items, { strong = items.length, style = 'hard
       if (open >= 0) html += '</span>';
       open = marks[i];
       if (open >= 0) {
-        const cls = open < strong ? `${style}${open === current ? ' current' : ''}${added.has(items[open].text) ? ' added' : ''}` : 'item';
+        const cls =
+          open < strong
+            ? `${style}${open === current ? ' current' : ''}${added.has(items[open].text) ? ' added' : ''}`
+            : `item${inDeck(items[open], state.words.deck) ? ' deck' : ''}`;
         html += `<span class="${cls}" data-h="${open}">`;
       }
     }
