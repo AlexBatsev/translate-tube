@@ -205,12 +205,22 @@ async function undoLastKnown() {
 }
 $('undo-known').addEventListener('click', undoLastKnown);
 document.addEventListener('keydown', (e) => {
-  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || e.target.closest?.('input, textarea, select')) return;
   if (e.key === 'u' || e.key === 'U') {
     e.preventDefault();
     undoLastKnown();
+  } else if (e.key === ' ') {
+    // Space plays and pauses the video, as on YouTube, instead of scrolling
+    // the panel. (In Prepare, Space shows the translation; that handler runs first.)
+    e.preventDefault();
+    togglePlay();
   }
 });
+
+async function togglePlay() {
+  const info = await toTab({ type: 'tt:toggle' });
+  if (info) state.paused = info.paused;
+}
 
 // ---------- transcript + analysis ----------
 

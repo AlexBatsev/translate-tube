@@ -35,7 +35,7 @@ const json3 = {
 };
 
 const watchPage = `<!doctype html><title>Sample talk - YouTube</title>
-<div id="movie_player"><video src="http://127.0.0.1:8099/media.wav" muted></video></div>
+<div id="movie_player"><video src="/media.wav" muted></video></div>
 <h1 class="ytd-watch-metadata">Sample talk</h1>
 <script>
   document.getElementById('movie_player').getPlayerResponse = () => ({
@@ -110,21 +110,7 @@ function anki(req, res, body) {
   json(res, { result: result ?? null, error: null });
 }
 
-function mediaServer(req, res) {
-  const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '');
-  const start = m ? Number(m[1]) : 0;
-  const end = m && m[2] ? Number(m[2]) : media.length - 1;
-  res.writeHead(m ? 206 : 200, {
-    'content-type': 'audio/wav',
-    'accept-ranges': 'bytes',
-    'content-length': end - start + 1,
-    'access-control-allow-origin': '*',
-    ...(m ? { 'content-range': `bytes ${start}-${end}/${media.length}` } : {})
-  });
-  res.end(media.subarray(start, end + 1));
-}
-
-const servers = [await listen(11434, ollama), await listen(8765, anki), await listen(8099, mediaServer)];
+const servers = [await listen(11434, ollama), await listen(8765, anki)];
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'tt-e2e-'));
 const ctx = await chromium.launchPersistentContext(profile, {
   channel: 'chromium',
@@ -146,6 +132,21 @@ try {
   await ctx.route('https://www.youtube.com/**', (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/timedtext') return route.fulfill({ json: json3 });
+    if (url.pathname === '/media.wav') {
+      // Range requests, so the player can seek.
+      const m = /bytes=(\d+)-(\d*)/.exec(route.request().headers().range ?? '');
+      const start = m ? Number(m[1]) : 0;
+      const end = m && m[2] ? Number(m[2]) : media.length - 1;
+      return route.fulfill({
+        status: m ? 206 : 200,
+        headers: {
+          'content-type': 'audio/wav',
+          'accept-ranges': 'bytes',
+          ...(m ? { 'content-range': `bytes ${start}-${end}/${media.length}` } : {})
+        },
+        body: media.subarray(start, end + 1)
+      });
+    }
     return route.fulfill({ contentType: 'text/html', body: watchPage });
   });
   const sw = ctx.serviceWorkers()[0] ?? (await ctx.waitForEvent('serviceworker'));
@@ -215,6 +216,14 @@ try {
   await panel.keyboard.press('ArrowRight');
   await until(() => yt.evaluate(() => document.querySelector('video').currentTime).then((t) => Math.abs(t - 5) < 0.6), 'next line');
   step('→ moves the video to the next line');
+
+  const playing = () => yt.evaluate(() => !document.querySelector('video').paused);
+  const before = await playing();
+  await panel.keyboard.press(' ');
+  await until(async () => (await playing()) !== before, 'Space toggles the video');
+  await panel.keyboard.press(' ');
+  await until(async () => (await playing()) === before, 'Space toggles it back');
+  step('Space plays and pauses the video');
 
   // Prepare asks only for what comes next; seeking far away moves the window.
   await yt.evaluate(() => (document.querySelector('video').currentTime = 520));
