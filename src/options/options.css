@@ -60,3 +60,4 @@ input[type=search] { font: inherit; color: inherit; background: var(--bg); borde
 .known-list .more { border: 0; color: var(--muted); }
 label.check { display: flex; margin: 6px 0; }
 summary h2 { display: inline; }
+pre.script { max-height: 320px; overflow: auto; font: 12px/1.4 ui-monospace, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; white-space: pre-wrap; }

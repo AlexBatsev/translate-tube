@@ -34,6 +34,7 @@ Pick one in Settings, paste a key, press **Test**. The model is chosen automatic
 | Anthropic Claude | paid API | Key from [console.anthropic.com](https://console.anthropic.com/settings/keys) |
 | OpenAI | paid API | Key from [platform.openai.com](https://platform.openai.com/api-keys) |
 | OpenRouter | pay per use, some free models | One key for models from many companies, managed on [openrouter.ai](https://openrouter.ai/settings/keys) |
+| Claude (your Claude plan) | included in your plan | No key. Settings has a one-time setup for Windows: copy a command into PowerShell. It installs Claude Code if needed and a small helper that the browser starts only when asked. Models: Haiku, Sonnet, Opus. Counts toward your plan's limits; each answer takes a few seconds |
 | Ollama | free, local | Runs on your computer. No key and no settings: install it, pull a model, press **Test** |
 
 Keys are stored only in `chrome.storage.local` on your computer and are sent only to the provider you chose.

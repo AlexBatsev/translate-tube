@@ -22,7 +22,8 @@ export const DEFAULT_SETTINGS = {
     claude: { apiKey: '', model: '' },
     openai: { apiKey: '', model: '' },
     openrouter: { apiKey: '', model: '' },
-    ollama: { host: 'http://localhost:11434', model: '' }
+    ollama: { host: 'http://localhost:11434', model: '' },
+    claudecli: { model: '' }
   },
   // 1 (beginner) .. 5 (advanced). Shown to the user in plain words.
   level: 3,
@@ -45,7 +46,7 @@ export const DEFAULT_SETTINGS = {
   showSentenceTranslation: 'off'
 };
 
-const PROVIDER_IDS = ['gemini', 'claude', 'openai', 'openrouter', 'ollama'];
+const PROVIDER_IDS = ['gemini', 'claude', 'openai', 'openrouter', 'ollama', 'claudecli'];
 
 export const LEVELS = [
   { value: 1, label: 'Just starting', hint: 'I know a few hundred everyday words.' },

@@ -3,9 +3,10 @@ import claude from './claude.js';
 import openai from './openai.js';
 import ollama from './ollama.js';
 import openrouter from './openrouter.js';
+import claudecli from './claudecli.js';
 
 // To add a provider: create a module with the same shape and list it here.
-export const PROVIDERS = [gemini, claude, openai, openrouter, ollama];
+export const PROVIDERS = [gemini, claude, openai, openrouter, ollama, claudecli];
 
 export function getProvider(id) {
   return PROVIDERS.find((p) => p.id === id) ?? gemini;

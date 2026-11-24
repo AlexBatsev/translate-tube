@@ -4,6 +4,7 @@ import { PROVIDERS, getProvider, rankModels } from '../lib/providers/index.js';
 import { testProvider, loadModels } from '../lib/ai.js';
 import { invoke } from '../lib/anki.js';
 import { SELF_CHECK, levelFromCheck, parseWordList } from '../lib/level.js';
+import { helperStatus } from '../lib/providers/claudecli.js';
 
 const $ = (id) => document.getElementById(id);
 const wizard = location.hash === '#welcome';
@@ -95,9 +96,11 @@ function renderProviderConfig() {
   $('key-link').textContent = p.id === 'ollama' ? 'Download Ollama' : 'Get a key';
   $('apiKey').value = cfg.apiKey ?? '';
   $('host').value = cfg.host ?? '';
+  $('key-link').hidden = !p.fields.length;
   renderModels();
   status($('provider-status'), '');
   setProviderOk(false);
+  renderClaudeSetup();
 }
 
 function setProviderOk(ok) {
@@ -163,6 +166,7 @@ $('test-provider').addEventListener('click', async () => {
     let msg = e.message;
     if (e.timeout) msg += ' The model may be overloaded. Try again, or choose another model.';
     if (p.id === 'ollama' && /reach/.test(msg)) msg += ' Is Ollama running?';
+    if (e.setup) msg = 'Claude is not set up yet. Follow the steps under “Set up Claude on this computer”.';
     status(el, msg, 'err');
   } finally {
     clearInterval(timer);
@@ -375,6 +379,7 @@ function renderBackup() {
   $('backup-key-field').hidden = !p.fields.includes('apiKey');
   $('backup-host-field').hidden = !p.fields.includes('host');
   $('backup-key-link').href = p.keyUrl;
+  renderClaudeSetup();
   $('backup-key').value = cfg.apiKey ?? '';
   $('backup-host').value = cfg.host ?? '';
   status($('backup-status'), '');
@@ -446,11 +451,85 @@ $('data-load').addEventListener('change', async (e) => {
   }
 });
 
+// ---------- Claude (your plan) setup ----------
+
+let claudeTimer = null;
+let claudeTested = false;
+const isWindows = /win/i.test(navigator.userAgentData?.platform ?? navigator.platform ?? '');
+
+function claudeWanted() {
+  return settings.provider === 'claudecli' || $('backup-provider').value === 'claudecli';
+}
+
+function claudeStepsDone(n) {
+  document.querySelectorAll('#claude-steps li').forEach((li) => li.classList.toggle('done', Number(li.dataset.cs) <= n));
+}
+
+// Shows the setup steps while Claude (your plan) is the main or backup AI
+// and checks every few seconds whether the helper answers.
+function renderClaudeSetup() {
+  const want = claudeWanted();
+  $('claude-setup').hidden = !want || (wizard && step !== 1);
+  $('claude-steps').hidden = !isWindows;
+  $('claude-other-os').hidden = isWindows;
+  clearInterval(claudeTimer);
+  claudeTimer = null;
+  if (!want) return;
+  const check = async () => {
+    const st = await helperStatus();
+    if (!st.ready) {
+      claudeStepsDone(0);
+      status($('claude-live'), st.why === 'setup' ? 'Waiting for the setup… not found yet. This updates by itself.' : st.message, st.why === 'setup' ? '' : 'err');
+      return;
+    }
+    if (!st.signedIn) {
+      claudeStepsDone(3);
+      status($('claude-live'), 'Claude Code is installed but not signed in. In PowerShell run: claude auth login', 'err');
+      return;
+    }
+    claudeStepsDone(4);
+    status($('claude-live'), `Claude is ready (${st.version}).`, 'ok');
+    clearInterval(claudeTimer); // nothing more to wait for
+    // Test once by itself, like Anki connects by itself.
+    if (!claudeTested && settings.provider === 'claudecli' && !providerOk && !$('test-provider').disabled) {
+      claudeTested = true;
+      $('test-provider').click();
+    }
+  };
+  check();
+  claudeTimer = setInterval(check, 4000);
+}
+
+// The setup script with the helper inside and this extension's id filled in.
+async function claudeScript() {
+  const get = async (f) => (await fetch(chrome.runtime.getURL(`src/setup/${f}`))).text();
+  const [setup, helper] = await Promise.all([get('claude-setup.ps1'), get('claude-host.ps1')]);
+  // Functions as replacements, so $ signs in the scripts are kept as they are.
+  return setup.replace('__EXTENSION_ID__', () => chrome.runtime.id).replace('__HOST_SCRIPT__', () => helper.trimEnd());
+}
+
+async function copyClaudeCommand(button, remove) {
+  // Wrapped in & { } so it pastes into PowerShell as one command.
+  await navigator.clipboard.writeText(`& {\n${await claudeScript()}\n}${remove ? ' -Remove' : ''}\n`);
+  const label = button.textContent;
+  button.textContent = 'Copied';
+  setTimeout(() => (button.textContent = label), 1500);
+}
+
+$('claude-copy').addEventListener('click', (e) => copyClaudeCommand(e.currentTarget, false));
+$('claude-remove').addEventListener('click', (e) => copyClaudeCommand(e.currentTarget, true));
+$('claude-show').addEventListener('click', async () => {
+  const pre = $('claude-script');
+  pre.textContent = await claudeScript();
+  pre.hidden = !pre.hidden;
+});
+
 // ---------- wizard ----------
 
 function showStep(n) {
   step = n;
   document.querySelectorAll('section[data-step]').forEach((s) => (s.hidden = Number(s.dataset.step) !== n));
+  renderClaudeSetup();
   document.querySelectorAll('#steps li').forEach((li) => li.classList.toggle('on', Number(li.dataset.step) === n));
   $('back').hidden = n === 0;
   $('next').textContent = n === 3 ? 'Finish' : 'Next';

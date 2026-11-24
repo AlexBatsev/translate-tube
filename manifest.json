@@ -32,7 +32,8 @@
     "sidePanel",
     "alarms",
     "scripting",
-    "declarativeNetRequestWithHostAccess"
+    "declarativeNetRequestWithHostAccess",
+    "nativeMessaging"
   ],
   "host_permissions": [
     "https://www.youtube.com/*",

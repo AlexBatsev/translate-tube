@@ -51,6 +51,28 @@
       </div>
     </section>
 
+    <section class="panel" data-step="1" id="claude-setup" hidden>
+      <h2>Set up Claude on this computer</h2>
+      <p class="muted">Translate Tube asks your Claude plan through the official Claude Code app. A small helper starts it only when a translation is needed; nothing runs in the background.</p>
+      <ol class="anki-steps" id="claude-steps">
+        <li data-cs="1"><b>Copy the setup command:</b> <button id="claude-copy" class="mini" type="button">Copy</button></li>
+        <li data-cs="2"><b>Open PowerShell:</b> press <kbd>Win</kbd>, type <code>PowerShell</code> and press <kbd>Enter</kbd>.</li>
+        <li data-cs="3"><b>Paste and run:</b> right-click inside the window (if asked, choose <b>Paste anyway</b>), then press <kbd>Enter</kbd>. It installs Claude Code if it is missing and opens a browser to sign in if needed.</li>
+        <li data-cs="4"><b>Done:</b> this page notices it by itself.</li>
+      </ol>
+      <p id="claude-other-os" class="muted" hidden>The automatic setup is for Windows.</p>
+      <p id="claude-live" class="status"></p>
+      <details>
+        <summary>What the setup does, and how to remove it</summary>
+        <p class="muted small">It installs Claude Code only if it is missing, puts the helper into <code>%LOCALAPPDATA%\TranslateTube\claude-helper</code> and tells Chrome and Edge where it is. Requests count toward your Claude plan’s usage limits. If you move the extension folder, run the setup again.</p>
+        <div class="row">
+          <button id="claude-show" type="button">Show the script</button>
+          <button id="claude-remove" type="button">Copy removal command</button>
+        </div>
+        <pre id="claude-script" class="script" hidden></pre>
+      </details>
+    </section>
+
     <section class="panel" data-step="1">
       <details id="backup-box">
       <summary><h2>Backup AI <span class="muted small">(optional)</span></h2></summary>

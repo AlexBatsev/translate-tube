@@ -58,4 +58,5 @@ When Anki is closed, sent cards wait in the extension and go to Anki within a mi
 - **"YouTube did not return the subtitles"** – press <kbd>C</kbd> on the video to turn subtitles on once, then click "try again" in the panel.
 - **"No subtitles in your learning language"** – the video has no subtitles in that language. Check the language in Settings.
 - **"Anki is not running"** – open Anki. Cards are kept and sent later.
+- **Claude (your Claude plan) "not set up on this computer yet"** – paste the setup command from Settings into PowerShell. Run it again after moving the extension folder.
 - **Anki asks to set up again / lost the add-on** – Anki keeps add-ons per computer user. Install AnkiConnect again (step 3) and restart Anki.
