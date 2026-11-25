@@ -33,6 +33,7 @@ process.stdin.on('data', () => {
   fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ type: msg.type, model: msg.model }) + '\\n');
   let reply;
   if (msg.type === 'ping') reply = { ok: true, version: '9.9.9 (Claude Code)', signedIn: true };
+  else if (msg.type === 'complete' && msg.model === 'opus') reply = { ok: false, code: 'failed', error: 'Unrecognized model setting; generate failed' };
   else if (msg.type === 'complete') {
     const item = { text: 'break the ice', lemma: 'break the ice', kind: 'idiom', level: 3, translation: 'розтопити кригу', note: 'n' };
     reply = { ok: true, text: JSON.stringify({ item, sentenceTranslation: 'x' }) };
@@ -103,6 +104,15 @@ try {
   const calls = fs.readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.ok(calls.some((c) => c.type === 'complete' && c.model === 'sonnet'));
   step('a chosen model is passed to Claude Code');
+
+  // Any other error is shown as it is, not as a usage limit.
+  await page.selectOption('#model', 'opus');
+  await page.locator('#test-provider').click();
+  await until(() => page.locator('#provider-status.err').count(), 'error shown');
+  const err = await page.locator('#provider-status').textContent();
+  assert.match(err, /Unrecognized model setting/);
+  assert.doesNotMatch(err, /limit/i);
+  step('a Claude Code error is shown as it is, not as a usage limit');
   console.log('\nall checks passed');
 } finally {
   await ctx.close();

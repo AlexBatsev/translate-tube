@@ -32,14 +32,20 @@ function ask(message, timeoutMs, signal) {
         finish(reject, Object.assign(new ProviderError('Claude is not set up on this computer yet. See “Set up Claude on this computer” in Settings.'), { setup: true }));
       } else if (!reply?.ok) {
         const text = reply?.error || 'Claude did not answer.';
-        // Plan limits behave like an API limit, so the backup AI can take over.
-        const status = /limit|rate|overloaded|529|429/i.test(text) ? 429 : reply?.code === 'no-claude' ? 0 : 500;
-        finish(reject, Object.assign(new ProviderError(`Claude: ${text}`, status), { setup: reply?.code === 'no-claude' }));
+        finish(reject, Object.assign(new ProviderError(`Claude: ${text}`, claudeStatus(text)), { setup: reply?.code === 'no-claude' }));
       } else {
         finish(resolve, reply);
       }
     });
   });
+}
+
+// Only a real plan limit or overload counts as one, so the backup AI takes
+// over and another model is tried. Any other problem is shown as it is.
+export function claudeStatus(text) {
+  if (/usage limit|rate[ _-]?limit|limit (reached|exceeded)|\b429\b|too many requests/i.test(text)) return 429;
+  if (/overloaded|\b529\b/i.test(text)) return 503;
+  return 0;
 }
 
 // Used by the setup steps. Never throws.
